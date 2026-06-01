@@ -12,13 +12,12 @@ export function MatrixRain() {
     const ctx = canvas.getContext("2d");
     if (!ctx) return;
 
-    // Matrix characters (mix of katakana, numbers, and symbols)
-    const chars =
-      "アイウエオカキクケコサシスセソタチツテトナニヌネノハヒフヘホマミムメモヤユヨラリルレロワヲン0123456789";
+    // Simpler character set for cleaner look
+    const chars = "01";
     const charArray = chars.split("");
 
-    const fontSize = 16;
-    const columnSpacing = 24; // Wider spacing between columns
+    const fontSize = 14;
+    const columnSpacing = 40; // Much wider spacing
 
     let columns: number;
     let drops: number[];
@@ -27,15 +26,15 @@ export function MatrixRain() {
       columns = Math.floor(canvas.width / columnSpacing);
       drops = [];
       for (let i = 0; i < columns; i++) {
-        drops[i] = Math.random() * -50;
+        drops[i] = Math.random() * -100;
       }
     };
 
     const resizeCanvas = () => {
       canvas.width = window.innerWidth;
       canvas.height = window.innerHeight;
-      // Clear canvas on resize
-      ctx.fillStyle = "rgba(0, 0, 0, 1)";
+      // Clear canvas completely
+      ctx.fillStyle = "#000000";
       ctx.fillRect(0, 0, canvas.width, canvas.height);
       initializeDrops();
     };
@@ -44,43 +43,37 @@ export function MatrixRain() {
     window.addEventListener("resize", resizeCanvas);
 
     const draw = () => {
-      // Strong fade effect to prevent character buildup
-      ctx.fillStyle = "rgba(0, 0, 0, 0.12)";
+      // Very strong fade for clean trails
+      ctx.fillStyle = "rgba(0, 0, 0, 0.15)";
       ctx.fillRect(0, 0, canvas.width, canvas.height);
 
-      ctx.font = `${fontSize}px "Courier New", monospace`;
+      ctx.font = `${fontSize}px monospace`;
       ctx.textAlign = "center";
 
       for (let i = 0; i < drops.length; i++) {
-        // Random character
         const char = charArray[Math.floor(Math.random() * charArray.length)];
-
-        // Calculate position with proper spacing
         const x = i * columnSpacing + columnSpacing / 2;
         const y = drops[i] * fontSize;
 
-        // Only draw if on screen
         if (y > 0 && y < canvas.height + fontSize) {
-          // Bright head character
-          if (Math.random() > 0.96) {
-            ctx.fillStyle = "rgba(200, 255, 200, 0.9)";
+          // Only bright head, very dim trail
+          if (Math.random() > 0.97) {
+            ctx.fillStyle = "rgba(0, 255, 65, 0.8)";
           } else {
-            // Dim trailing characters
-            ctx.fillStyle = `rgba(0, 255, 65, ${0.15 + Math.random() * 0.15})`;
+            ctx.fillStyle = "rgba(0, 255, 65, 0.08)";
           }
           ctx.fillText(char, x, y);
         }
 
-        // Reset when reaching bottom or randomly
-        if (y > canvas.height && Math.random() > 0.98) {
+        if (y > canvas.height && Math.random() > 0.99) {
           drops[i] = 0;
         }
 
-        drops[i] += 0.6; // Slower fall speed
+        drops[i] += 0.4; // Even slower
       }
     };
 
-    const interval = setInterval(draw, 50); // Slower frame rate
+    const interval = setInterval(draw, 80); // Slower updates
 
     return () => {
       clearInterval(interval);
@@ -91,7 +84,7 @@ export function MatrixRain() {
   return (
     <canvas
       ref={canvasRef}
-      className="fixed inset-0 pointer-events-none opacity-60"
+      className="fixed inset-0 pointer-events-none opacity-40"
       style={{ zIndex: 0 }}
     />
   );

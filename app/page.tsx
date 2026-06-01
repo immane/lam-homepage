@@ -142,6 +142,10 @@ export default function HomePage() {
   const repos = data?.repos || [];
   const stats = data?.stats;
 
+  // Separate pinned and non-pinned repos
+  const pinnedRepos = repos.filter((repo) => repo.isPinned);
+  const otherRepos = repos.filter((repo) => !repo.isPinned);
+
   return (
     <main className="relative min-h-screen overflow-x-hidden">
       {/* Matrix Rain Background */}
@@ -272,7 +276,61 @@ export default function HomePage() {
           </div>
         </section>
 
-        {/* Projects Section */}
+        {/* Pinned Repositories Section */}
+        {(isLoading || pinnedRepos.length > 0) && (
+          <section className="py-20 px-4">
+            <div className="max-w-6xl mx-auto">
+              <h2 className="text-2xl font-mono font-bold text-center mb-2">
+                <span className="text-muted-foreground">{"["}</span>
+                <svg
+                  className="inline-block w-5 h-5 text-primary mx-2 -mt-1"
+                  fill="currentColor"
+                  viewBox="0 0 16 16"
+                >
+                  <path d="M4.456.734a1.75 1.75 0 0 1 2.826.504l.613 1.327a3.08 3.08 0 0 0 2.084 1.707l2.454.584c1.332.317 1.8 1.972.832 2.94L11.06 10l3.72 3.72a.75.75 0 1 1-1.06 1.06L10 11.06l-2.204 2.205c-.968.968-2.623.5-2.94-.832l-.584-2.454a3.08 3.08 0 0 0-1.707-2.084l-1.327-.613a1.75 1.75 0 0 1-.504-2.826L4.456.734Z" />
+                </svg>
+                <span className="text-primary">Pinned</span>
+                <span className="text-muted-foreground">{"]"}</span>
+              </h2>
+              <p className="text-center text-muted-foreground mb-12 font-mono text-sm">
+                {"// Featured repositories"}
+                {isLoading && (
+                  <span className="ml-2 text-primary animate-pulse">
+                    fetching...
+                  </span>
+                )}
+              </p>
+
+              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+                {isLoading
+                  ? Array.from({ length: 3 }).map((_, index) => (
+                      <SkeletonCard key={index} />
+                    ))
+                  : pinnedRepos.map((project, index) => (
+                      <div
+                        key={project.name}
+                        className="animate-in fade-in slide-in-from-bottom-4"
+                        style={{
+                          animationDelay: `${index * 50}ms`,
+                          animationFillMode: "both",
+                        }}
+                      >
+                        <ProjectCard
+                          name={project.name}
+                          description={project.description || ""}
+                          language={project.language || "Unknown"}
+                          stars={project.stars}
+                          url={project.url}
+                          isPinned={project.isPinned}
+                        />
+                      </div>
+                    ))}
+              </div>
+            </div>
+          </section>
+        )}
+
+        {/* All Projects Section */}
         <section className="py-20 px-4">
           <div className="max-w-6xl mx-auto">
             <h2 className="text-2xl font-mono font-bold text-center mb-2">
@@ -281,7 +339,7 @@ export default function HomePage() {
               <span className="text-muted-foreground">{"}"}</span>
             </h2>
             <p className="text-center text-muted-foreground mb-12 font-mono text-sm">
-              {"// All open source repositories"}
+              {"// All repositories"}
               {isLoading && (
                 <span className="ml-2 text-primary animate-pulse">
                   fetching...
@@ -292,9 +350,9 @@ export default function HomePage() {
                   (using cached data)
                 </span>
               )}
-              {!isLoading && repos.length > 0 && (
+              {!isLoading && otherRepos.length > 0 && (
                 <span className="ml-2 text-muted-foreground">
-                  ({repos.length} repos)
+                  ({otherRepos.length} repos)
                 </span>
               )}
             </p>
@@ -304,7 +362,7 @@ export default function HomePage() {
                 ? Array.from({ length: 6 }).map((_, index) => (
                     <SkeletonCard key={index} />
                   ))
-                : repos.map((project, index) => (
+                : otherRepos.map((project, index) => (
                     <div
                       key={project.name}
                       className="animate-in fade-in slide-in-from-bottom-4"
@@ -319,7 +377,6 @@ export default function HomePage() {
                         language={project.language || "Unknown"}
                         stars={project.stars}
                         url={project.url}
-                        isPinned={project.isPinned}
                       />
                     </div>
                   ))}
