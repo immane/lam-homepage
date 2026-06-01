@@ -40,32 +40,82 @@ query($username: String!) {
 }
 `;
 
-async function fetchPinnedRepos(username: string): Promise<string[]> {
+// Fetch pinned repos via HTML scraping (no token required)
+async function fetchPinnedReposFromHTML(username: string): Promise<string[]> {
   try {
-    const response = await fetch("https://api.github.com/graphql", {
-      method: "POST",
+    const response = await fetch(`https://github.com/${username}`, {
       headers: {
-        "Content-Type": "application/json",
-        Authorization: `Bearer ${process.env.GITHUB_TOKEN}`,
-        "User-Agent": "Portfolio-App",
+        "User-Agent": "Mozilla/5.0 (compatible; Portfolio-App/1.0)",
+        Accept: "text/html",
       },
-      body: JSON.stringify({
-        query: PINNED_REPOS_QUERY,
-        variables: { username },
-      }),
       next: { revalidate: 3600 },
     });
 
-    if (!response.ok) {
-      return [];
+    if (!response.ok) return [];
+
+    const html = await response.text();
+    
+    // Match pinned repository names from the HTML
+    // GitHub uses data-hovercard-url for pinned repos
+    const pinnedPattern = /class="[^"]*pinned-item-list-item[^"]*"[\s\S]*?href="\/[^/]+\/([^/"]+)"/g;
+    const matches: string[] = [];
+    let match;
+    
+    while ((match = pinnedPattern.exec(html)) !== null) {
+      if (match[1] && !matches.includes(match[1])) {
+        matches.push(match[1]);
+      }
+    }
+    
+    // Fallback: try another pattern
+    if (matches.length === 0) {
+      const altPattern = /itemprop="name codeRepository"[^>]*>([^<]+)</g;
+      while ((match = altPattern.exec(html)) !== null) {
+        const repoName = match[1].trim();
+        if (repoName && !matches.includes(repoName)) {
+          matches.push(repoName);
+        }
+      }
     }
 
-    const data = await response.json();
-    const pinnedNodes = data?.data?.user?.pinnedItems?.nodes || [];
-    return pinnedNodes.map((node: { name: string }) => node.name);
+    return matches;
   } catch {
     return [];
   }
+}
+
+async function fetchPinnedRepos(username: string): Promise<string[]> {
+  // Try GraphQL first if token is available
+  if (process.env.GITHUB_TOKEN) {
+    try {
+      const response = await fetch("https://api.github.com/graphql", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${process.env.GITHUB_TOKEN}`,
+          "User-Agent": "Portfolio-App",
+        },
+        body: JSON.stringify({
+          query: PINNED_REPOS_QUERY,
+          variables: { username },
+        }),
+        next: { revalidate: 3600 },
+      });
+
+      if (response.ok) {
+        const data = await response.json();
+        const pinnedNodes = data?.data?.user?.pinnedItems?.nodes || [];
+        if (pinnedNodes.length > 0) {
+          return pinnedNodes.map((node: { name: string }) => node.name);
+        }
+      }
+    } catch {
+      // Fall through to HTML scraping
+    }
+  }
+
+  // Fallback to HTML scraping
+  return fetchPinnedReposFromHTML(username);
 }
 
 export async function GET() {
