@@ -60,20 +60,20 @@ export function MatrixRain() {
 
         if (y > 0 && y < canvas.height + fontSize) {
           fadeCounters[i]++;
-          
+
           // Calculate opacity based on position in stream
           const streamLength = 15;
           const posInStream = fadeCounters[i] % streamLength;
-          
+
           // Head of stream is bright, fades as it goes
           if (posInStream < 2) {
             ctx.fillStyle = "rgba(180, 255, 180, 0.9)"; // Bright head
           } else if (posInStream < 5) {
             ctx.fillStyle = "rgba(0, 255, 65, 0.5)"; // Medium
           } else {
-            ctx.fillStyle = "rgba(0, 255, 65, 0.2)"; // Dim trail
+            ctx.fillStyle = "rgba(0, 255, 65, 0.0)"; // Dim trail
           }
-          
+
           ctx.fillText(char, x, y);
         }
 
