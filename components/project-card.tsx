@@ -1,0 +1,127 @@
+"use client";
+
+import { useState } from "react";
+import { cn } from "@/lib/utils";
+
+interface ProjectCardProps {
+  name: string;
+  description: string;
+  language: string;
+  stars: number;
+  url: string;
+}
+
+const languageColors: Record<string, string> = {
+  PHP: "#4F5D95",
+  Verilog: "#b2b7f8",
+  Rust: "#dea584",
+  Python: "#3572A5",
+  Vue: "#41b883",
+  TypeScript: "#3178c6",
+  JavaScript: "#f1e05a",
+};
+
+export function ProjectCard({
+  name,
+  description,
+  language,
+  stars,
+  url,
+}: ProjectCardProps) {
+  const [isHovered, setIsHovered] = useState(false);
+
+  return (
+    <a
+      href={url}
+      target="_blank"
+      rel="noopener noreferrer"
+      className={cn(
+        "group relative block p-6 rounded-lg border border-border",
+        "bg-card/50 backdrop-blur-sm",
+        "transition-all duration-300 ease-out",
+        "hover:border-primary hover:shadow-[0_0_30px_rgba(0,255,65,0.3)]",
+        "hover:bg-card/80"
+      )}
+      onMouseEnter={() => setIsHovered(true)}
+      onMouseLeave={() => setIsHovered(false)}
+    >
+      {/* Scan line effect on hover */}
+      {isHovered && (
+        <div className="absolute inset-0 overflow-hidden rounded-lg pointer-events-none">
+          <div
+            className="absolute inset-x-0 h-[2px] bg-gradient-to-r from-transparent via-primary to-transparent"
+            style={{
+              animation: "scanline 1s linear infinite",
+            }}
+          />
+        </div>
+      )}
+
+      {/* Terminal header */}
+      <div className="flex items-center gap-2 mb-4 pb-3 border-b border-border">
+        <div className="flex gap-1.5">
+          <div className="w-3 h-3 rounded-full bg-red-500/80" />
+          <div className="w-3 h-3 rounded-full bg-yellow-500/80" />
+          <div className="w-3 h-3 rounded-full bg-green-500/80" />
+        </div>
+        <span className="text-xs text-muted-foreground font-mono ml-2">
+          ~/projects/{name}
+        </span>
+      </div>
+
+      {/* Project name with glitch on hover */}
+      <h3
+        className={cn(
+          "text-lg font-mono font-bold text-primary mb-2",
+          "transition-all duration-200",
+          isHovered && "text-shadow-glow"
+        )}
+        style={{
+          textShadow: isHovered
+            ? "0 0 10px var(--primary), 0 0 20px var(--primary)"
+            : "none",
+        }}
+      >
+        <span className="text-muted-foreground">$</span> {name}
+      </h3>
+
+      {/* Description */}
+      <p className="text-sm text-muted-foreground mb-4 line-clamp-2 leading-relaxed">
+        {description || "// No description provided"}
+      </p>
+
+      {/* Footer with language and stars */}
+      <div className="flex items-center justify-between text-xs font-mono">
+        <div className="flex items-center gap-2">
+          <span
+            className="w-3 h-3 rounded-full"
+            style={{ backgroundColor: languageColors[language] || "#00ff41" }}
+          />
+          <span className="text-muted-foreground">{language}</span>
+        </div>
+        <div className="flex items-center gap-1 text-muted-foreground">
+          <svg
+            className="w-4 h-4"
+            fill="currentColor"
+            viewBox="0 0 20 20"
+          >
+            <path d="M9.049 2.927c.3-.921 1.603-.921 1.902 0l1.07 3.292a1 1 0 00.95.69h3.462c.969 0 1.371 1.24.588 1.81l-2.8 2.034a1 1 0 00-.364 1.118l1.07 3.292c.3.921-.755 1.688-1.54 1.118l-2.8-2.034a1 1 0 00-1.175 0l-2.8 2.034c-.784.57-1.838-.197-1.539-1.118l1.07-3.292a1 1 0 00-.364-1.118L2.98 8.72c-.783-.57-.38-1.81.588-1.81h3.461a1 1 0 00.951-.69l1.07-3.292z" />
+          </svg>
+          <span>{stars}</span>
+        </div>
+      </div>
+
+      {/* Arrow indicator */}
+      <div
+        className={cn(
+          "absolute top-6 right-6 text-primary opacity-0 transition-all duration-300",
+          "group-hover:opacity-100 group-hover:translate-x-1"
+        )}
+      >
+        <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14" />
+        </svg>
+      </div>
+    </a>
+  );
+}
