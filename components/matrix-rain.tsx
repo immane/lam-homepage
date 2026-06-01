@@ -12,68 +12,75 @@ export function MatrixRain() {
     const ctx = canvas.getContext("2d");
     if (!ctx) return;
 
+    // Matrix characters (mix of katakana, numbers, and symbols)
+    const chars =
+      "アイウエオカキクケコサシスセソタチツテトナニヌネノハヒフヘホマミムメモヤユヨラリルレロワヲン0123456789";
+    const charArray = chars.split("");
+
+    const fontSize = 16;
+    const columnSpacing = 24; // Wider spacing between columns
+
+    let columns: number;
+    let drops: number[];
+
+    const initializeDrops = () => {
+      columns = Math.floor(canvas.width / columnSpacing);
+      drops = [];
+      for (let i = 0; i < columns; i++) {
+        drops[i] = Math.random() * -50;
+      }
+    };
+
     const resizeCanvas = () => {
       canvas.width = window.innerWidth;
       canvas.height = window.innerHeight;
+      // Clear canvas on resize
+      ctx.fillStyle = "rgba(0, 0, 0, 1)";
+      ctx.fillRect(0, 0, canvas.width, canvas.height);
+      initializeDrops();
     };
 
     resizeCanvas();
     window.addEventListener("resize", resizeCanvas);
 
-    // Matrix characters (mix of katakana, numbers, and symbols)
-    const chars =
-      "アイウエオカキクケコサシスセソタチツテトナニヌネノハヒフヘホマミムメモヤユヨラリルレロワヲン0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZ@#$%^&*(){}[]|;:<>?";
-    const charArray = chars.split("");
-
-    const fontSize = 14;
-    const columns = Math.floor(canvas.width / fontSize);
-
-    // Array to track y position of each column
-    const drops: number[] = [];
-    for (let i = 0; i < columns; i++) {
-      drops[i] = Math.random() * -100;
-    }
-
     const draw = () => {
-      // Darker background with stronger fade for clearer foreground
-      ctx.fillStyle = "rgba(0, 2, 1, 0.08)";
+      // Strong fade effect to prevent character buildup
+      ctx.fillStyle = "rgba(0, 0, 0, 0.12)";
       ctx.fillRect(0, 0, canvas.width, canvas.height);
 
-      ctx.fillStyle = "#00ff41";
-      ctx.font = `${fontSize}px monospace`;
-      ctx.globalAlpha = 0.4; // Reduce overall opacity of matrix rain
+      ctx.font = `${fontSize}px "Courier New", monospace`;
+      ctx.textAlign = "center";
 
       for (let i = 0; i < drops.length; i++) {
         // Random character
         const char = charArray[Math.floor(Math.random() * charArray.length)];
 
-        // Draw the character
-        const x = i * fontSize;
+        // Calculate position with proper spacing
+        const x = i * columnSpacing + columnSpacing / 2;
         const y = drops[i] * fontSize;
 
-        // Brighter character at the head of the stream
-        if (Math.random() > 0.98) {
-          ctx.fillStyle = "rgba(255, 255, 255, 0.6)";
-        } else if (Math.random() > 0.9) {
-          ctx.fillStyle = "rgba(125, 255, 125, 0.5)";
-        } else {
-          ctx.fillStyle = "rgba(0, 255, 65, 0.35)";
+        // Only draw if on screen
+        if (y > 0 && y < canvas.height + fontSize) {
+          // Bright head character
+          if (Math.random() > 0.96) {
+            ctx.fillStyle = "rgba(200, 255, 200, 0.9)";
+          } else {
+            // Dim trailing characters
+            ctx.fillStyle = `rgba(0, 255, 65, ${0.15 + Math.random() * 0.15})`;
+          }
+          ctx.fillText(char, x, y);
         }
 
-        ctx.fillText(char, x, y);
-
         // Reset when reaching bottom or randomly
-        if (y > canvas.height && Math.random() > 0.975) {
+        if (y > canvas.height && Math.random() > 0.98) {
           drops[i] = 0;
         }
 
-        drops[i]++;
+        drops[i] += 0.6; // Slower fall speed
       }
-      
-      ctx.globalAlpha = 1; // Reset alpha
     };
 
-    const interval = setInterval(draw, 33);
+    const interval = setInterval(draw, 50); // Slower frame rate
 
     return () => {
       clearInterval(interval);
@@ -84,7 +91,7 @@ export function MatrixRain() {
   return (
     <canvas
       ref={canvasRef}
-      className="fixed inset-0 pointer-events-none"
+      className="fixed inset-0 pointer-events-none opacity-60"
       style={{ zIndex: 0 }}
     />
   );

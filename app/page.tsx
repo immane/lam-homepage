@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useEffect } from "react";
+import useSWR from "swr";
 import { MatrixRain } from "@/components/matrix-rain";
 import { GlitchText } from "@/components/glitch-text";
 import { TypingText } from "@/components/typing-text";
@@ -8,53 +9,37 @@ import { ProjectCard } from "@/components/project-card";
 import { TechStack } from "@/components/tech-stack";
 import { cn } from "@/lib/utils";
 
-const projects = [
-  {
-    name: "crud-admin",
-    description:
-      "A config-driven admin panel framework powered by Vue 2, Element UI and EasyAdmin",
-    language: "Vue",
-    stars: 0,
-    url: "https://github.com/immane/crud-admin",
-  },
-  {
-    name: "compact-rag",
-    description:
-      "Enterprise-grade RAG system — lightweight, production-ready document retrieval and intelligent Q&A.",
-    language: "Python",
-    stars: 0,
-    url: "https://github.com/immane/compact-rag",
-  },
-  {
-    name: "tetris-silicon",
-    description:
-      "A Rust terminal Tetris implementation built with the Silicon-Based Software Architecture Paradigm",
-    language: "Rust",
-    stars: 1,
-    url: "https://github.com/immane/tetris-silicon",
-  },
-  {
-    name: "fpga-projects",
-    description: "Research for Tang Nano 2K FPGA development board",
-    language: "Verilog",
-    stars: 1,
-    url: "https://github.com/immane/fpga-projects",
-  },
-  {
-    name: "crud-skeleton",
-    description: "Minimal, pragmatic CRUD skeleton built on Symfony 8.1",
-    language: "PHP",
-    stars: 1,
-    url: "https://github.com/immane/crud-skeleton",
-  },
-  {
-    name: "quant-trade",
-    description: "Quantitative trading research and experiments",
-    language: "Python",
-    stars: 0,
-    url: "https://github.com/immane/quant-trade",
-  },
-];
+interface GitHubData {
+  user: {
+    login: string;
+    name: string | null;
+    avatar_url: string;
+    bio: string | null;
+    company: string | null;
+    blog: string | null;
+    location: string | null;
+    public_repos: number;
+    followers: number;
+    following: number;
+  };
+  repos: Array<{
+    name: string;
+    description: string | null;
+    language: string | null;
+    stars: number;
+    url: string;
+    topics: string[];
+  }>;
+  stats: {
+    totalRepos: number;
+    totalStars: number;
+    languages: number;
+    createdYear: number;
+    followers: number;
+  };
+}
+
+const fetcher = (url: string) => fetch(url).then((res) => res.json());
 
 const socialLinks = [
   {
@@ -91,9 +76,56 @@ const socialLinks = [
   },
 ];
 
+function LoadingState() {
+  return (
+    <div className="min-h-screen bg-background flex flex-col items-center justify-center gap-4">
+      <div className="relative">
+        <div className="w-16 h-16 border-2 border-primary/30 rounded-full" />
+        <div className="absolute inset-0 w-16 h-16 border-2 border-transparent border-t-primary rounded-full animate-spin" />
+      </div>
+      <div className="font-mono text-primary text-sm">
+        <span className="animate-pulse">{">"} Loading GitHub data...</span>
+      </div>
+      <div className="font-mono text-muted-foreground text-xs">
+        Establishing connection to the Matrix...
+      </div>
+    </div>
+  );
+}
+
+function SkeletonCard() {
+  return (
+    <div className="p-6 rounded-lg border border-border bg-card/50 backdrop-blur-sm animate-pulse">
+      <div className="flex items-center gap-2 mb-4 pb-3 border-b border-border">
+        <div className="flex gap-1.5">
+          <div className="w-3 h-3 rounded-full bg-muted" />
+          <div className="w-3 h-3 rounded-full bg-muted" />
+          <div className="w-3 h-3 rounded-full bg-muted" />
+        </div>
+      </div>
+      <div className="h-6 bg-muted rounded w-2/3 mb-3" />
+      <div className="h-4 bg-muted rounded w-full mb-2" />
+      <div className="h-4 bg-muted rounded w-4/5 mb-4" />
+      <div className="flex justify-between">
+        <div className="h-4 bg-muted rounded w-16" />
+        <div className="h-4 bg-muted rounded w-10" />
+      </div>
+    </div>
+  );
+}
+
 export default function HomePage() {
   const [mounted, setMounted] = useState(false);
   const [showContent, setShowContent] = useState(false);
+
+  const { data, error, isLoading } = useSWR<GitHubData>(
+    "/api/github",
+    fetcher,
+    {
+      revalidateOnFocus: false,
+      dedupingInterval: 60000, // Dedupe requests within 1 minute
+    }
+  );
 
   useEffect(() => {
     setMounted(true);
@@ -102,14 +134,12 @@ export default function HomePage() {
   }, []);
 
   if (!mounted) {
-    return (
-      <div className="min-h-screen bg-background flex items-center justify-center">
-        <div className="text-primary font-mono animate-pulse">
-          Initializing...
-        </div>
-      </div>
-    );
+    return <LoadingState />;
   }
+
+  const user = data?.user;
+  const repos = data?.repos || [];
+  const stats = data?.stats;
 
   return (
     <main className="relative min-h-screen overflow-x-hidden">
@@ -140,25 +170,32 @@ export default function HomePage() {
                     "0 0 20px var(--primary), inset 0 0 20px rgba(0,255,65,0.1)",
                 }}
               />
-              <img
-                src="https://avatars.githubusercontent.com/u/9325176?v=4"
-                alt="Lam K."
-                className="w-full h-full rounded-full object-cover"
-                crossOrigin="anonymous"
-              />
+              {user?.avatar_url ? (
+                <img
+                  src={user.avatar_url}
+                  alt={user.name || user.login}
+                  className="w-full h-full rounded-full object-cover"
+                  crossOrigin="anonymous"
+                />
+              ) : (
+                <div className="w-full h-full rounded-full bg-card animate-pulse" />
+              )}
               {/* Online indicator */}
               <div className="absolute bottom-2 right-2 w-4 h-4 bg-primary rounded-full border-2 border-background animate-pulse" />
             </div>
 
             {/* Name with glitch effect */}
             <h1 className="text-4xl md:text-6xl font-bold font-mono mb-4">
-              <GlitchText text="Lam K." className="text-primary" />
+              <GlitchText
+                text={user?.name || user?.login || "Loading..."}
+                className="text-primary"
+              />
             </h1>
 
             {/* Typing effect tagline */}
             <div className="h-8 mb-6">
               <TypingText
-                text="$ echo 'Full-Stack Developer @ RM Studio'"
+                text={`$ echo '${user?.company || "Full-Stack Developer"}'`}
                 className="text-lg md:text-xl text-muted-foreground"
                 speed={40}
                 delay={800}
@@ -167,11 +204,15 @@ export default function HomePage() {
 
             {/* Bio */}
             <p className="max-w-2xl mx-auto text-muted-foreground leading-relaxed mb-8 px-4">
-              Building elegant solutions across the stack. From{" "}
-              <span className="text-primary">enterprise admin panels</span> to{" "}
-              <span className="text-primary">AI-powered RAG systems</span>,{" "}
-              <span className="text-primary">FPGA hardware</span> to{" "}
-              <span className="text-primary">quantitative trading</span>.
+              {user?.bio || (
+                <>
+                  Building elegant solutions across the stack. From{" "}
+                  <span className="text-primary">enterprise admin panels</span>{" "}
+                  to <span className="text-primary">AI-powered RAG systems</span>
+                  , <span className="text-primary">FPGA hardware</span> to{" "}
+                  <span className="text-primary">quantitative trading</span>.
+                </>
+              )}
             </p>
 
             {/* Social Links */}
@@ -240,21 +281,41 @@ export default function HomePage() {
             </h2>
             <p className="text-center text-muted-foreground mb-12 font-mono text-sm">
               {"// Recent open source contributions"}
+              {isLoading && (
+                <span className="ml-2 text-primary animate-pulse">
+                  fetching...
+                </span>
+              )}
+              {error && (
+                <span className="ml-2 text-red-400">
+                  (using cached data)
+                </span>
+              )}
             </p>
 
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-              {projects.map((project, index) => (
-                <div
-                  key={project.name}
-                  className="animate-in fade-in slide-in-from-bottom-4"
-                  style={{
-                    animationDelay: `${index * 100}ms`,
-                    animationFillMode: "both",
-                  }}
-                >
-                  <ProjectCard {...project} />
-                </div>
-              ))}
+              {isLoading
+                ? Array.from({ length: 6 }).map((_, index) => (
+                    <SkeletonCard key={index} />
+                  ))
+                : repos.map((project, index) => (
+                    <div
+                      key={project.name}
+                      className="animate-in fade-in slide-in-from-bottom-4"
+                      style={{
+                        animationDelay: `${index * 100}ms`,
+                        animationFillMode: "both",
+                      }}
+                    >
+                      <ProjectCard
+                        name={project.name}
+                        description={project.description || ""}
+                        language={project.language || "Unknown"}
+                        stars={project.stars}
+                        url={project.url}
+                      />
+                    </div>
+                  ))}
             </div>
 
             {/* View all link */}
@@ -295,10 +356,22 @@ export default function HomePage() {
           <div className="max-w-4xl mx-auto">
             <div className="grid grid-cols-2 md:grid-cols-4 gap-6">
               {[
-                { label: "Public Repos", value: "15+" },
-                { label: "Commits (30d)", value: "74%" },
-                { label: "Since", value: "2014" },
-                { label: "Languages", value: "6+" },
+                {
+                  label: "Public Repos",
+                  value: stats?.totalRepos ?? "--",
+                },
+                {
+                  label: "Total Stars",
+                  value: stats?.totalStars ?? "--",
+                },
+                {
+                  label: "Since",
+                  value: stats?.createdYear ?? "--",
+                },
+                {
+                  label: "Languages",
+                  value: stats?.languages ? `${stats.languages}+` : "--",
+                },
               ].map((stat, index) => (
                 <div
                   key={stat.label}
@@ -309,7 +382,12 @@ export default function HomePage() {
                   )}
                   style={{ animationDelay: `${index * 100}ms` }}
                 >
-                  <div className="text-3xl font-mono font-bold text-primary mb-2">
+                  <div
+                    className={cn(
+                      "text-3xl font-mono font-bold text-primary mb-2",
+                      isLoading && "animate-pulse"
+                    )}
+                  >
                     {stat.value}
                   </div>
                   <div className="text-sm text-muted-foreground font-mono">
@@ -328,11 +406,11 @@ export default function HomePage() {
               <span className="text-primary">$</span> cat footer.txt
             </div>
             <p className="text-muted-foreground text-sm mb-4">
-              Built with Next.js, Tailwind CSS, and lots of ☕
+              Built with Next.js, Tailwind CSS, and lots of coffee
             </p>
             <div className="font-mono text-xs text-muted-foreground">
-              <span className="text-primary">&gt;</span> © 2024 Lam K. All
-              rights reserved.
+              <span className="text-primary">&gt;</span> &copy; {new Date().getFullYear()}{" "}
+              {user?.name || user?.login || "Lam K."}. All rights reserved.
             </div>
             <div className="mt-4 font-mono text-xs text-muted-foreground animate-pulse">
               <span className="text-primary">_</span>
