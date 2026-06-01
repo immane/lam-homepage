@@ -35,12 +35,13 @@ export function MatrixRain() {
     }
 
     const draw = () => {
-      // Semi-transparent black to create trail effect
-      ctx.fillStyle = "rgba(0, 5, 2, 0.05)";
+      // Darker background with stronger fade for clearer foreground
+      ctx.fillStyle = "rgba(0, 2, 1, 0.08)";
       ctx.fillRect(0, 0, canvas.width, canvas.height);
 
       ctx.fillStyle = "#00ff41";
       ctx.font = `${fontSize}px monospace`;
+      ctx.globalAlpha = 0.4; // Reduce overall opacity of matrix rain
 
       for (let i = 0; i < drops.length; i++) {
         // Random character
@@ -52,11 +53,11 @@ export function MatrixRain() {
 
         // Brighter character at the head of the stream
         if (Math.random() > 0.98) {
-          ctx.fillStyle = "#ffffff";
+          ctx.fillStyle = "rgba(255, 255, 255, 0.6)";
         } else if (Math.random() > 0.9) {
-          ctx.fillStyle = "#7dff7d";
+          ctx.fillStyle = "rgba(125, 255, 125, 0.5)";
         } else {
-          ctx.fillStyle = "#00ff41";
+          ctx.fillStyle = "rgba(0, 255, 65, 0.35)";
         }
 
         ctx.fillText(char, x, y);
@@ -68,6 +69,8 @@ export function MatrixRain() {
 
         drops[i]++;
       }
+      
+      ctx.globalAlpha = 1; // Reset alpha
     };
 
     const interval = setInterval(draw, 33);
