@@ -71,7 +71,7 @@ export function MatrixRain() {
           } else if (posInStream < 5) {
             ctx.fillStyle = "rgba(0, 255, 65, 0.5)"; // Medium
           } else {
-            ctx.fillStyle = "rgba(0, 255, 65, 0.0)"; // Dim trail
+            ctx.fillStyle = "rgba(0, 255, 65, 0.2)"; // Dim trail
           }
 
           ctx.fillText(char, x, y);
