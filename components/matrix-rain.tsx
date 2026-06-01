@@ -89,7 +89,7 @@ export function MatrixRain() {
           if (j === 0) {
             // Head character - bright white/green
             ctx.fillStyle = "rgba(200, 255, 200, 0.95)";
-          } else if (j < 3) {
+          } else if (j < 10) {
             // Near head - bright green
             ctx.fillStyle = `rgba(0, 255, 65, ${0.7 - fadeRatio * 0.3})`;
           } else {
