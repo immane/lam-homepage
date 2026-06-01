@@ -9,6 +9,7 @@ interface ProjectCardProps {
   language: string;
   stars: number;
   url: string;
+  isPinned?: boolean;
 }
 
 const languageColors: Record<string, string> = {
@@ -27,6 +28,7 @@ export function ProjectCard({
   language,
   stars,
   url,
+  isPinned = false,
 }: ProjectCardProps) {
   const [isHovered, setIsHovered] = useState(false);
 
@@ -64,9 +66,21 @@ export function ProjectCard({
           <div className="w-3 h-3 rounded-full bg-yellow-500/80" />
           <div className="w-3 h-3 rounded-full bg-green-500/80" />
         </div>
-        <span className="text-xs text-muted-foreground font-mono ml-2">
+        <span className="text-xs text-muted-foreground font-mono ml-2 flex-1 truncate">
           ~/projects/{name}
         </span>
+        {/* Pinned indicator */}
+        {isPinned && (
+          <div className="flex items-center gap-1 text-primary" title="Pinned repository">
+            <svg
+              className="w-4 h-4"
+              fill="currentColor"
+              viewBox="0 0 16 16"
+            >
+              <path d="M4.456.734a1.75 1.75 0 0 1 2.826.504l.613 1.327a3.08 3.08 0 0 0 2.084 1.707l2.454.584c1.332.317 1.8 1.972.832 2.94L11.06 10l3.72 3.72a.75.75 0 1 1-1.06 1.06L10 11.06l-2.204 2.205c-.968.968-2.623.5-2.94-.832l-.584-2.454a3.08 3.08 0 0 0-1.707-2.084l-1.327-.613a1.75 1.75 0 0 1-.504-2.826L4.456.734Z" />
+            </svg>
+          </div>
+        )}
       </div>
 
       {/* Project name with glitch on hover */}

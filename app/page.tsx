@@ -29,6 +29,7 @@ interface GitHubData {
     stars: number;
     url: string;
     topics: string[];
+    isPinned: boolean;
   }>;
   stats: {
     totalRepos: number;
@@ -280,7 +281,7 @@ export default function HomePage() {
               <span className="text-muted-foreground">{"}"}</span>
             </h2>
             <p className="text-center text-muted-foreground mb-12 font-mono text-sm">
-              {"// Recent open source contributions"}
+              {"// All open source repositories"}
               {isLoading && (
                 <span className="ml-2 text-primary animate-pulse">
                   fetching...
@@ -289,6 +290,11 @@ export default function HomePage() {
               {error && (
                 <span className="ml-2 text-red-400">
                   (using cached data)
+                </span>
+              )}
+              {!isLoading && repos.length > 0 && (
+                <span className="ml-2 text-muted-foreground">
+                  ({repos.length} repos)
                 </span>
               )}
             </p>
@@ -303,7 +309,7 @@ export default function HomePage() {
                       key={project.name}
                       className="animate-in fade-in slide-in-from-bottom-4"
                       style={{
-                        animationDelay: `${index * 100}ms`,
+                        animationDelay: `${index * 50}ms`,
                         animationFillMode: "both",
                       }}
                     >
@@ -313,15 +319,16 @@ export default function HomePage() {
                         language={project.language || "Unknown"}
                         stars={project.stars}
                         url={project.url}
+                        isPinned={project.isPinned}
                       />
                     </div>
                   ))}
             </div>
 
-            {/* View all link */}
+            {/* GitHub profile link */}
             <div className="text-center mt-12">
               <a
-                href="https://github.com/immane?tab=repositories"
+                href="https://github.com/immane"
                 target="_blank"
                 rel="noopener noreferrer"
                 className={cn(
@@ -332,7 +339,7 @@ export default function HomePage() {
                   "hover:shadow-[0_0_30px_rgba(0,255,65,0.4)]"
                 )}
               >
-                <span>View All Repositories</span>
+                <span>View GitHub Profile</span>
                 <svg
                   className="w-4 h-4"
                   fill="none"
