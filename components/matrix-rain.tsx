@@ -65,8 +65,8 @@ export function MatrixRain() {
     window.addEventListener("resize", resizeCanvas);
 
     const draw = () => {
-      // Clear entire canvas with solid black each frame
-      ctx.fillStyle = "#000000";
+      // Semi-transparent overlay for trail effect (classic Matrix look)
+      ctx.fillStyle = "rgba(0, 0, 0, 0.05)";
       ctx.fillRect(0, 0, canvas.width, canvas.height);
 
       ctx.font = `${fontSize}px monospace`;
@@ -76,47 +76,41 @@ export function MatrixRain() {
         const drop = drops[i];
         const x = i * columnSpacing + columnSpacing / 2;
 
-        // Draw each character in the drop with fading opacity
-        for (let j = 0; j < drop.length; j++) {
-          const charY = (drop.y - j) * fontSize;
+        // Only draw the head character each frame (trail comes from fade effect)
+        const headY = drop.y * fontSize;
 
-          // Skip if off screen
-          if (charY < -fontSize || charY > canvas.height + fontSize) continue;
+        if (headY > 0 && headY < canvas.height + fontSize) {
+          // Bright head character
+          ctx.fillStyle = "rgba(180, 255, 180, 0.95)";
+          ctx.fillText(drop.chars[0], x, headY);
 
-          // Calculate opacity: head is brightest, tail fades out
-          const fadeRatio = j / drop.length;
-
-          if (j === 0) {
-            // Head character - bright white/green
-            ctx.fillStyle = "rgba(200, 255, 200, 0.95)";
-          } else if (j < 10) {
-            // Near head - bright green
-            ctx.fillStyle = `rgba(0, 255, 65, ${0.7 - fadeRatio * 0.3})`;
-          } else {
-            // Tail - fading green
-            const opacity = Math.max(0.05, 0.4 * (1 - fadeRatio));
-            ctx.fillStyle = `rgba(0, 255, 65, ${opacity})`;
+          // Draw a few trailing chars with decreasing brightness
+          for (let j = 1; j < Math.min(4, drop.length); j++) {
+            const trailY = (drop.y - j) * fontSize;
+            if (trailY > 0) {
+              const opacity = 0.6 - j * 0.15;
+              ctx.fillStyle = `rgba(0, 255, 65, ${opacity})`;
+              
+              // Occasionally change characters for flicker effect
+              if (Math.random() > 0.95) {
+                drop.chars[j] = randomChar();
+              }
+              ctx.fillText(drop.chars[j], x, trailY);
+            }
           }
-
-          // Occasionally change a character
-          if (Math.random() > 0.98) {
-            drop.chars[j] = randomChar();
-          }
-
-          ctx.fillText(drop.chars[j], x, charY);
         }
 
         // Move drop down
         drop.y += drop.speed;
 
-        // Reset when entire drop is off screen
-        if ((drop.y - drop.length) * fontSize > canvas.height) {
-          drops[i] = createDrop(-Math.random() * 20);
+        // Reset when off screen
+        if (drop.y * fontSize > canvas.height + fontSize * 5) {
+          drops[i] = createDrop(-Math.random() * 10);
         }
       }
     };
 
-    const interval = setInterval(draw, 45);
+    const interval = setInterval(draw, 33);
 
     return () => {
       clearInterval(interval);
@@ -127,7 +121,7 @@ export function MatrixRain() {
   return (
     <canvas
       ref={canvasRef}
-      className="fixed inset-0 pointer-events-none opacity-60"
+      className="fixed inset-0 pointer-events-none opacity-80"
       style={{ zIndex: 0 }}
     />
   );
