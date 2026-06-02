@@ -2,13 +2,6 @@
 
 import { useEffect, useRef } from "react";
 
-interface Drop {
-  y: number;
-  speed: number;
-  chars: string[];
-  length: number;
-}
-
 export function MatrixRain() {
   const canvasRef = useRef<HTMLCanvasElement>(null);
 
@@ -19,45 +12,33 @@ export function MatrixRain() {
     const ctx = canvas.getContext("2d");
     if (!ctx) return;
 
-    // Matrix characters
+    // Original Matrix characters (katakana, numbers, symbols)
     const chars =
       "アイウエオカキクケコサシスセソタチツテトナニヌネノハヒフヘホマミムメモヤユヨラリルレロワヲン0123456789";
     const charArray = chars.split("");
 
     const fontSize = 14;
-    const columnSpacing = 32;
+    const columnSpacing = 28; // Balanced spacing
 
     let columns: number;
-    let drops: Drop[];
-
-    const randomChar = () => charArray[Math.floor(Math.random() * charArray.length)];
-
-    const createDrop = (startY: number): Drop => {
-      const length = Math.floor(Math.random() * 15) + 5; // 5-20 chars
-      const dropChars: string[] = [];
-      for (let i = 0; i < length; i++) {
-        dropChars.push(randomChar());
-      }
-      return {
-        y: startY,
-        speed: Math.random() * 0.3 + 0.2, // 0.2-0.5
-        chars: dropChars,
-        length,
-      };
-    };
+    let drops: number[];
+    let fadeCounters: number[]; // Track how long each column has been visible
 
     const initializeDrops = () => {
       columns = Math.floor(canvas.width / columnSpacing);
       drops = [];
+      fadeCounters = [];
       for (let i = 0; i < columns; i++) {
-        // Stagger initial positions
-        drops.push(createDrop(Math.random() * -canvas.height / fontSize));
+        drops[i] = Math.random() * -50;
+        fadeCounters[i] = 0;
       }
     };
 
     const resizeCanvas = () => {
       canvas.width = window.innerWidth;
       canvas.height = window.innerHeight;
+      ctx.fillStyle = "#000000";
+      ctx.fillRect(0, 0, canvas.width, canvas.height);
       initializeDrops();
     };
 
@@ -65,58 +46,48 @@ export function MatrixRain() {
     window.addEventListener("resize", resizeCanvas);
 
     const draw = () => {
-      // Clear entire canvas with solid black each frame
-      ctx.fillStyle = "#000000";
+      // Clear with semi-transparent black for trail effect
+      ctx.fillStyle = "rgba(0, 0, 0, 0.1)";
       ctx.fillRect(0, 0, canvas.width, canvas.height);
 
       ctx.font = `${fontSize}px monospace`;
       ctx.textAlign = "center";
 
       for (let i = 0; i < drops.length; i++) {
-        const drop = drops[i];
+        const char = charArray[Math.floor(Math.random() * charArray.length)];
         const x = i * columnSpacing + columnSpacing / 2;
+        const y = drops[i] * fontSize;
 
-        // Draw each character in the drop with fading opacity
-        for (let j = 0; j < drop.length; j++) {
-          const charY = (drop.y - j) * fontSize;
+        if (y > 0 && y < canvas.height + fontSize) {
+          fadeCounters[i]++;
 
-          // Skip if off screen
-          if (charY < -fontSize || charY > canvas.height + fontSize) continue;
+          // Calculate opacity based on position in stream
+          const streamLength = 15;
+          const posInStream = fadeCounters[i] % streamLength;
 
-          // Calculate opacity: head is brightest, tail fades out
-          const fadeRatio = j / drop.length;
-
-          if (j === 0) {
-            // Head character - bright white/green
-            ctx.fillStyle = "rgba(200, 255, 200, 0.75)";
-          } else if (j < 10) {
-            // Near head - bright green
-            ctx.fillStyle = `rgba(0, 255, 65, ${0.7 - fadeRatio * 0.3})`;
+          // Head of stream is bright, fades as it goes
+          if (posInStream < 2) {
+            ctx.fillStyle = "rgba(180, 255, 180, 0.9)"; // Bright head
+          } else if (posInStream < 5) {
+            ctx.fillStyle = "rgba(0, 255, 65, 0.5)"; // Medium
           } else {
-            // Tail - fading green
-            const opacity = Math.max(0.05, 0.4 * (1 - fadeRatio));
-            ctx.fillStyle = `rgba(0, 255, 65, ${opacity})`;
+            ctx.fillStyle = "rgba(0, 255, 65, 0.2)"; // Dim trail
           }
 
-          // Occasionally change a character
-          if (Math.random() > 0.98) {
-            drop.chars[j] = randomChar();
-          }
-
-          ctx.fillText(drop.chars[j], x, charY);
+          ctx.fillText(char, x, y);
         }
 
-        // Move drop down
-        drop.y += drop.speed;
-
-        // Reset when entire drop is off screen
-        if ((drop.y - drop.length) * fontSize > canvas.height) {
-          drops[i] = createDrop(-Math.random() * 20);
+        // Reset when reaching bottom
+        if (y > canvas.height && Math.random() > 0.975) {
+          drops[i] = 0;
+          fadeCounters[i] = 0;
         }
+
+        drops[i] += 0.5;
       }
     };
 
-    const interval = setInterval(draw, 45);
+    const interval = setInterval(draw, 50);
 
     return () => {
       clearInterval(interval);
@@ -127,7 +98,7 @@ export function MatrixRain() {
   return (
     <canvas
       ref={canvasRef}
-      className="fixed inset-0 pointer-events-none opacity-60"
+      className="fixed inset-0 pointer-events-none opacity-70"
       style={{ zIndex: 0 }}
     />
   );
