@@ -19,17 +19,33 @@ export function MatrixRain() {
 
     const fontSize = 14;
     const columnSpacing = 28; // Balanced spacing
+    const createSeededRandom = (seed: number) => () => {
+      seed |= 0;
+      seed = (seed + 0x6d2b79f5) | 0;
+      let value = Math.imul(seed ^ (seed >>> 15), 1 | seed);
+      value = (value + Math.imul(value ^ (value >>> 7), 61 | value)) ^ value;
+      return ((value ^ (value >>> 14)) >>> 0) / 4294967296;
+    };
 
     let columns: number;
     let drops: number[];
+    let initialDrops: number[];
     let fadeCounters: number[]; // Track how long each column has been visible
+    let seeds: number[];
+    let randoms: Array<() => number>;
 
     const initializeDrops = () => {
       columns = Math.floor(canvas.width / columnSpacing);
       drops = [];
+      initialDrops = [];
       fadeCounters = [];
+      seeds = [];
+      randoms = [];
       for (let i = 0; i < columns; i++) {
-        drops[i] = Math.random() * -50;
+        seeds[i] = i + 1;
+        randoms[i] = createSeededRandom(seeds[i]);
+        initialDrops[i] = randoms[i]() * -50;
+        drops[i] = initialDrops[i];
         fadeCounters[i] = 0;
       }
     };
@@ -54,7 +70,8 @@ export function MatrixRain() {
       ctx.textAlign = "center";
 
       for (let i = 0; i < drops.length; i++) {
-        const char = charArray[Math.floor(Math.random() * charArray.length)];
+        const random = randoms[i];
+        const char = charArray[Math.floor(random() * charArray.length)];
         const x = i * columnSpacing + columnSpacing / 2;
         const y = drops[i] * fontSize;
 
@@ -78,12 +95,16 @@ export function MatrixRain() {
         }
 
         // Reset when reaching bottom
-        if (y > canvas.height && Math.random() > 0.975) {
-          drops[i] = 0;
+        if (y > canvas.height && random() > 0.975) {
+          // Restart this stream from its exact initial seed and position.
+          randoms[i] = createSeededRandom(seeds[i]);
+          drops[i] = initialDrops[i];
           fadeCounters[i] = 0;
+          continue;
         }
 
-        drops[i] += 0.5;
+        // Advance one full glyph height so consecutive characters do not overlap.
+        drops[i] += 1;
       }
     };
 
