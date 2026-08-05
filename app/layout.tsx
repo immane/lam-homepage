@@ -14,9 +14,9 @@ const geistMono = Geist_Mono({
 });
 
 export const metadata: Metadata = {
-  title: "Lam K. | Full-Stack Developer",
+  title: "Lam K. | Independent Engineer",
   description:
-    "Full-stack developer passionate about building elegant solutions. Specializing in PHP, Vue, Python, Rust, and FPGA development.",
+    "Independent Engineer building AI systems, distributed platforms, and embedded software. Exploring the boundaries between intelligent & silicon-level computing.",
   keywords: [
     "developer",
     "full-stack",
@@ -29,8 +29,8 @@ export const metadata: Metadata = {
   ],
   authors: [{ name: "Lam K.", url: "https://github.com/immane" }],
   openGraph: {
-    title: "Lam K. | Full-Stack Developer",
-    description: "Full-stack developer building elegant solutions",
+    title: "Lam K. | Independent Engineer",
+    description: "Independent Engineer building AI systems, distributed platforms, and embedded software. Exploring the boundaries between intelligent & silicon-level computing.",
     type: "website",
   },
 };

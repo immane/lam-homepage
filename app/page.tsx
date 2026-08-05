@@ -474,7 +474,7 @@ export default function HomePage() {
             </p>
             <div className="font-mono text-xs text-muted-foreground">
               <span className="text-primary">&gt;</span> &copy; {new Date().getFullYear()}{" "}
-              {user?.name || user?.login || "Lam K."}. All rights reserved.
+              {user?.name || user?.login || "Lam K"}, All rights reserved.
             </div>
             <div className="mt-4 font-mono text-xs text-muted-foreground animate-pulse">
               <span className="text-primary">_</span>
