@@ -25,6 +25,11 @@ export interface GitHubUser {
   created_at: string;
 }
 
+interface PinnedRepoRef {
+  owner: string;
+  name: string;
+}
+
 // GraphQL query to get pinned repositories
 const PINNED_REPOS_QUERY = `
 query($username: String!) {
@@ -33,6 +38,9 @@ query($username: String!) {
       nodes {
         ... on Repository {
           name
+          owner {
+            login
+          }
         }
       }
     }
@@ -41,7 +49,7 @@ query($username: String!) {
 `;
 
 // Fetch pinned repos via HTML scraping (no token required)
-async function fetchPinnedReposFromHTML(username: string): Promise<string[]> {
+async function fetchPinnedReposFromHTML(username: string): Promise<PinnedRepoRef[]> {
   try {
     const response = await fetch(`https://github.com/${username}`, {
       headers: {
@@ -54,26 +62,32 @@ async function fetchPinnedReposFromHTML(username: string): Promise<string[]> {
     if (!response.ok) return [];
 
     const html = await response.text();
-    
-    // Match pinned repository names from the HTML
+
+    // Match pinned repository owner/name from the HTML
     // GitHub uses data-hovercard-url for pinned repos
-    const pinnedPattern = /class="[^"]*pinned-item-list-item[^"]*"[\s\S]*?href="\/[^/]+\/([^/"]+)"/g;
-    const matches: string[] = [];
+    const pinnedPattern = /class="[^"]*pinned-item-list-item[^"]*"[\s\S]*?href="\/([^/"]+)\/([^/"]+)"/g;
+    const matches: PinnedRepoRef[] = [];
     let match;
-    
+
     while ((match = pinnedPattern.exec(html)) !== null) {
-      if (match[1] && !matches.includes(match[1])) {
-        matches.push(match[1]);
+      const owner = match[1].trim();
+      const name = match[2].trim();
+      if (
+        owner &&
+        name &&
+        !matches.some((r) => r.owner === owner && r.name === name)
+      ) {
+        matches.push({ owner, name });
       }
     }
-    
+
     // Fallback: try another pattern
     if (matches.length === 0) {
       const altPattern = /itemprop="name codeRepository"[^>]*>([^<]+)</g;
       while ((match = altPattern.exec(html)) !== null) {
         const repoName = match[1].trim();
-        if (repoName && !matches.includes(repoName)) {
-          matches.push(repoName);
+        if (repoName && !matches.some((r) => r.name === repoName)) {
+          matches.push({ owner: username, name: repoName });
         }
       }
     }
@@ -84,7 +98,7 @@ async function fetchPinnedReposFromHTML(username: string): Promise<string[]> {
   }
 }
 
-async function fetchPinnedRepos(username: string): Promise<string[]> {
+async function fetchPinnedRepos(username: string): Promise<PinnedRepoRef[]> {
   // Try GraphQL first if token is available
   if (process.env.GITHUB_TOKEN) {
     try {
@@ -106,7 +120,10 @@ async function fetchPinnedRepos(username: string): Promise<string[]> {
         const data = await response.json();
         const pinnedNodes = data?.data?.user?.pinnedItems?.nodes || [];
         if (pinnedNodes.length > 0) {
-          return pinnedNodes.map((node: { name: string }) => node.name);
+          return pinnedNodes.map((node: { name: string; owner: { login: string } }) => ({
+            owner: node.owner?.login || username,
+            name: node.name,
+          }));
         }
       }
     } catch {
@@ -116,6 +133,32 @@ async function fetchPinnedRepos(username: string): Promise<string[]> {
 
   // Fallback to HTML scraping
   return fetchPinnedReposFromHTML(username);
+}
+
+// Fetch a single repo (used for pinned repos not owned by the user)
+async function fetchRepo(
+  owner: string,
+  name: string
+): Promise<GitHubRepo | null> {
+  try {
+    const response = await fetch(
+      `https://api.github.com/repos/${owner}/${name}`,
+      {
+        headers: {
+          Accept: "application/vnd.github.v3+json",
+          "User-Agent": "Portfolio-App",
+        },
+        next: { revalidate: 3600 },
+      }
+    );
+
+    if (!response.ok) return null;
+
+    const repo: GitHubRepo = await response.json();
+    return repo;
+  } catch {
+    return null;
+  }
 }
 
 export async function GET() {
@@ -154,17 +197,34 @@ export async function GET() {
     // Filter out forks
     const filteredRepos = allRepos.filter((repo) => !repo.fork);
 
-    // Create a Set of pinned repo names for quick lookup
-    const pinnedSet = new Set(pinnedRepoNames);
+    // Build a lookup of repos owned by the user
+    const ownedByName = new Map<string, GitHubRepo>(
+      filteredRepos.map((repo) => [repo.name, repo])
+    );
 
-    // Separate pinned and non-pinned repos
-    const pinnedRepos = filteredRepos.filter((repo) => pinnedSet.has(repo.name));
+    // Resolve pinned repos in their pinned order.
+    // Pinned repos can live under other organizations, so fetch those individually.
+    const pinnedRepos: GitHubRepo[] = [];
+    for (const pinned of pinnedRepoNames) {
+      // Repos owned by the user are already in the repos list
+      const owned =
+        pinned.owner === username
+          ? ownedByName.get(pinned.name)
+          : undefined;
+      if (owned) {
+        pinnedRepos.push(owned);
+        continue;
+      }
+      const orgRepo = await fetchRepo(pinned.owner, pinned.name);
+      if (orgRepo && !orgRepo.fork) {
+        pinnedRepos.push(orgRepo);
+      }
+    }
+
+    const pinnedSet = new Set(pinnedRepos.map((repo) => repo.name));
+
+    // Non-pinned repos are those owned by the user that are not pinned
     const nonPinnedRepos = filteredRepos.filter((repo) => !pinnedSet.has(repo.name));
-
-    // Sort pinned repos by the order they appear in pinnedRepoNames
-    pinnedRepos.sort((a, b) => {
-      return pinnedRepoNames.indexOf(a.name) - pinnedRepoNames.indexOf(b.name);
-    });
 
     // Sort non-pinned repos by stars, then by recent update
     nonPinnedRepos.sort((a, b) => {
