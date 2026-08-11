@@ -58,7 +58,7 @@ const socialLinks = [
   },
   {
     name: "Website",
-    url: "http://rin.hk",
+    url: "http://lam.wiki",
     icon: (
       <svg
         className="w-5 h-5"
