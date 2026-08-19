@@ -46,7 +46,7 @@ const fetcher = (url: string) => fetch(url).then((res) => res.json());
 const socialLinks = [
   {
     name: "GitHub",
-    url: "https://github.com/immane",
+    url: "#tech-stack",
     icon: (
       <svg className="w-5 h-5" fill="currentColor" viewBox="0 0 24 24">
         <path
@@ -59,7 +59,7 @@ const socialLinks = [
   },
   {
     name: "Website",
-    url: "http://lam.wiki",
+    url: "https://lam.wiki",
     icon: (
       <svg
         className="w-5 h-5"
@@ -164,6 +164,10 @@ export default function HomePage() {
     setPreviewRepository(null);
   };
 
+  const scrollToTechStack = () => {
+    document.getElementById("tech-stack")?.scrollIntoView({ behavior: "smooth" });
+  };
+
   return (
     <main className="relative min-h-screen overflow-x-hidden">
       {/* Matrix Rain Background */}
@@ -244,7 +248,7 @@ export default function HomePage() {
                 <button
                   key={link.name}
                   type="button"
-                  onClick={() => openPreview(link.url)}
+                  onClick={() => link.url === "#tech-stack" ? scrollToTechStack() : openPreview(link.url)}
                   className={cn(
                     "flex items-center gap-2 px-4 py-2 rounded border border-border",
                     "bg-card/50 backdrop-blur-sm text-foreground",
@@ -279,7 +283,7 @@ export default function HomePage() {
         </section>
 
         {/* Tech Stack Section */}
-        <section className="py-20 px-4">
+        <section className="py-20 px-4" id="tech-stack">
           <div className="max-w-4xl mx-auto">
             <h2 className="text-2xl font-mono font-bold text-center mb-2">
               <span className="text-muted-foreground">&lt;</span>
@@ -403,9 +407,10 @@ export default function HomePage() {
 
             {/* GitHub profile link */}
             <div className="text-center mt-12">
-              <button
-                type="button"
-                onClick={() => openPreview("https://github.com/immane")}
+              <a
+                href="https://github.com/immane"
+                rel="noreferrer"
+                target="_blank"
                 className={cn(
                   "inline-flex items-center gap-2 px-6 py-3 rounded border border-primary",
                   "text-primary font-mono",
@@ -428,7 +433,7 @@ export default function HomePage() {
                     d="M17 8l4 4m0 0l-4 4m4-4H3"
                   />
                 </svg>
-              </button>
+              </a>
             </div>
           </div>
         </section>
