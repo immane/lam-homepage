@@ -1,5 +1,7 @@
 import { NextResponse } from "next/server";
 
+const CLIENT_CACHE_CONTROL = "private, max-age=60, stale-while-revalidate=300";
+
 export interface GitHubRepo {
   name: string;
   description: string | null;
@@ -28,6 +30,16 @@ export interface GitHubUser {
 interface PinnedRepoRef {
   owner: string;
   name: string;
+}
+
+function githubHeaders() {
+  return {
+    Accept: "application/vnd.github+json",
+    "User-Agent": "Portfolio-App",
+    ...(process.env.GITHUB_TOKEN
+      ? { Authorization: `Bearer ${process.env.GITHUB_TOKEN}` }
+      : {}),
+  };
 }
 
 // GraphQL query to get pinned repositories
@@ -145,8 +157,7 @@ async function fetchRepo(
       `https://api.github.com/repos/${owner}/${name}`,
       {
         headers: {
-          Accept: "application/vnd.github.v3+json",
-          "User-Agent": "Portfolio-App",
+          ...githubHeaders(),
         },
         next: { revalidate: 3600 },
       }
@@ -169,8 +180,7 @@ export async function GET() {
     const [userRes, reposRes, pinnedRepoNames] = await Promise.all([
       fetch(`https://api.github.com/users/${username}`, {
         headers: {
-          Accept: "application/vnd.github.v3+json",
-          "User-Agent": "Portfolio-App",
+          ...githubHeaders(),
         },
         next: { revalidate: 3600 },
       }),
@@ -178,8 +188,7 @@ export async function GET() {
         `https://api.github.com/users/${username}/repos?sort=updated&per_page=100`,
         {
           headers: {
-            Accept: "application/vnd.github.v3+json",
-            "User-Agent": "Portfolio-App",
+            ...githubHeaders(),
           },
           next: { revalidate: 3600 },
         }
@@ -273,6 +282,8 @@ export async function GET() {
         createdYear,
         followers: user.followers,
       },
+    }, {
+      headers: { "Cache-Control": CLIENT_CACHE_CONTROL },
     });
   } catch (error) {
     console.error("GitHub API error:", error);

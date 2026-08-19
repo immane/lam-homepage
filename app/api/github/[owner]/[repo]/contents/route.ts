@@ -1,6 +1,8 @@
 import { NextRequest, NextResponse } from "next/server";
 
 const MAX_PREVIEW_SIZE = 1_000_000;
+const CONTENT_REVALIDATE_SECONDS = 900;
+const CLIENT_CACHE_CONTROL = "private, max-age=60, stale-while-revalidate=300";
 const repositorySegment = /^[a-zA-Z0-9_.-]+$/;
 
 interface GitHubContent {
@@ -11,6 +13,10 @@ interface GitHubContent {
   content?: string;
   encoding?: string;
   download_url: string | null;
+}
+
+interface GitHubApiError {
+  message?: string;
 }
 
 function githubHeaders() {
@@ -36,12 +42,19 @@ function toEntry(content: GitHubContent) {
   };
 }
 
+function cachedJson(body: object) {
+  return NextResponse.json(body, {
+    headers: { "Cache-Control": CLIENT_CACHE_CONTROL },
+  });
+}
+
 export async function GET(
   request: NextRequest,
   { params }: { params: Promise<{ owner: string; repo: string }> }
 ) {
   const { owner, repo } = await params;
   const path = request.nextUrl.searchParams.get("path") || "";
+  const raw = request.nextUrl.searchParams.get("raw") === "1";
 
   if (!repositorySegment.test(owner) || !repositorySegment.test(repo) || (path && !isSafePath(path))) {
     return NextResponse.json({ error: "Invalid repository path" }, { status: 400 });
@@ -54,17 +67,30 @@ export async function GET(
     .join("/");
   const response = await fetch(
     `https://api.github.com/repos/${encodeURIComponent(owner)}/${encodeURIComponent(repo)}/contents/${encodedPath}`,
-    { headers: githubHeaders(), next: { revalidate: 300 } }
+    { headers: githubHeaders(), next: { revalidate: CONTENT_REVALIDATE_SECONDS } }
   );
 
   if (!response.ok) {
-    return NextResponse.json({ error: "GitHub content is unavailable" }, { status: response.status });
+    const error: GitHubApiError = await response.json().catch(() => ({}));
+    if (response.status === 409 && !path) {
+      return cachedJson({ kind: "directory", path, entries: [] });
+    }
+    if (response.status === 403 && error.message?.toLowerCase().includes("rate limit")) {
+      return NextResponse.json(
+        { error: "GitHub API rate limit reached. Configure GITHUB_TOKEN to continue browsing repositories." },
+        { status: 429 }
+      );
+    }
+    return NextResponse.json(
+      { error: error.message || "GitHub content is unavailable" },
+      { status: response.status }
+    );
   }
 
   const content: GitHubContent | GitHubContent[] = await response.json();
 
   if (Array.isArray(content)) {
-    return NextResponse.json({
+    return cachedJson({
       kind: "directory",
       path,
       entries: content.map(toEntry).sort((a, b) => {
@@ -74,15 +100,22 @@ export async function GET(
     });
   }
 
+  if (raw && content.download_url) {
+    return NextResponse.redirect(content.download_url, {
+      headers: { "Cache-Control": CLIENT_CACHE_CONTROL },
+    });
+  }
+
   let text: string | null = null;
   if (content.type === "file" && content.encoding === "base64" && content.content && content.size <= MAX_PREVIEW_SIZE) {
     const decoded = Buffer.from(content.content, "base64");
     text = decoded.includes(0) ? null : decoded.toString("utf8");
   }
 
-  return NextResponse.json({
+  return cachedJson({
     kind: "file",
     entry: toEntry(content),
+    downloadUrl: content.download_url,
     content: text,
     canPreview: text !== null,
   });

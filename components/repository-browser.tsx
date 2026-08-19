@@ -25,11 +25,14 @@ interface DirectoryResponse {
 interface FileResponse {
   kind: "file";
   entry: Entry;
+  downloadUrl: string | null;
   content: string | null;
   canPreview: boolean;
 }
 
 type ContentResponse = DirectoryResponse | FileResponse;
+
+const imageFile = /\.(avif|bmp|gif|jpe?g|png|svg|webp)$/i;
 
 export function RepositoryBrowser({ owner, repository }: RepositoryBrowserProps) {
   const [directory, setDirectory] = useState<DirectoryResponse | null>(null);
@@ -85,6 +88,9 @@ export function RepositoryBrowser({ owner, repository }: RepositoryBrowserProps)
 
   const currentPath = directory?.path || "";
   const parentPath = currentPath.split("/").slice(0, -1).join("/");
+  const previewImageUrl = file && imageFile.test(file.entry.name)
+    ? `/api/github/${encodeURIComponent(owner)}/${encodeURIComponent(repository)}/contents?${new URLSearchParams({ path: file.entry.path, raw: "1" })}`
+    : null;
 
   return (
     <div className="repository-browser">
@@ -123,9 +129,19 @@ export function RepositoryBrowser({ owner, repository }: RepositoryBrowserProps)
           {file ? (
             <>
               <header>{file.entry.path}</header>
-              {file.canPreview ? (
+              {previewImageUrl ? (
+                <div className="repository-image-preview">
+                  <img alt={file.entry.name} src={previewImageUrl} />
+                </div>
+              ) : file.canPreview ? (
                 /\.mdx?$/i.test(file.entry.name) ? (
-                  <MarkdownPreview content={file.content || ""} />
+                  <MarkdownPreview
+                    content={file.content || ""}
+                    onNavigate={(path) => void loadDirectory(path)}
+                    owner={owner}
+                    path={file.entry.path}
+                    repository={repository}
+                  />
                 ) : (
                   <CodePreview code={file.content || ""} fileName={file.entry.name} />
                 )
