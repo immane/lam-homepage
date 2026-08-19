@@ -10,6 +10,7 @@ interface ProjectCardProps {
   stars: number;
   url: string;
   isPinned?: boolean;
+  onOpenPreview?: (url: string) => void;
 }
 
 const languageColors: Record<string, string> = {
@@ -29,16 +30,15 @@ export function ProjectCard({
   stars,
   url,
   isPinned = false,
+  onOpenPreview,
 }: ProjectCardProps) {
   const [isHovered, setIsHovered] = useState(false);
 
   return (
-    <a
-      href={url}
-      target="_blank"
-      rel="noopener noreferrer"
+    <button
+      type="button"
       className={cn(
-        "group relative block p-6 rounded-lg border border-border",
+        "group relative block w-full p-6 rounded-lg border border-border text-left",
         "bg-card/50 backdrop-blur-sm",
         "transition-all duration-300 ease-out",
         "hover:border-primary hover:shadow-[0_0_30px_rgba(0,255,65,0.3)]",
@@ -46,6 +46,7 @@ export function ProjectCard({
       )}
       onMouseEnter={() => setIsHovered(true)}
       onMouseLeave={() => setIsHovered(false)}
+      onClick={() => onOpenPreview?.(url)}
     >
       {/* Scan line effect on hover */}
       {isHovered && (
@@ -136,6 +137,6 @@ export function ProjectCard({
           <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14" />
         </svg>
       </div>
-    </a>
+    </button>
   );
 }

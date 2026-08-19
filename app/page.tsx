@@ -7,6 +7,7 @@ import { GlitchText } from "@/components/glitch-text";
 import { TypingText } from "@/components/typing-text";
 import { ProjectCard } from "@/components/project-card";
 import { TechStack } from "@/components/tech-stack";
+import { WebWindow } from "@/components/web-window";
 import { cn } from "@/lib/utils";
 
 interface GitHubData {
@@ -118,6 +119,8 @@ function SkeletonCard() {
 export default function HomePage() {
   const [mounted, setMounted] = useState(false);
   const [showContent, setShowContent] = useState(false);
+  const [previewUrl, setPreviewUrl] = useState<string | null>(null);
+  const [previewRepository, setPreviewRepository] = useState<{ owner: string; name: string } | null>(null);
 
   const { data, error, isLoading } = useSWR<GitHubData>(
     "/api/github",
@@ -145,6 +148,21 @@ export default function HomePage() {
   // Separate pinned and non-pinned repos
   const pinnedRepos = repos.filter((repo) => repo.isPinned);
   const otherRepos = repos.filter((repo) => !repo.isPinned);
+
+  const openPreview = (url: string) => {
+    const parsedUrl = new URL(url);
+    const [owner, name] = parsedUrl.pathname.split("/").filter(Boolean);
+
+    setPreviewUrl(url);
+    setPreviewRepository(
+      parsedUrl.hostname === "github.com" && owner && name ? { owner, name } : null
+    );
+  };
+
+  const closePreview = () => {
+    setPreviewUrl(null);
+    setPreviewRepository(null);
+  };
 
   return (
     <main className="relative min-h-screen overflow-x-hidden">
@@ -223,11 +241,10 @@ export default function HomePage() {
             {/* Social Links */}
             <div className="flex items-center justify-center gap-4 mb-12">
               {socialLinks.map((link) => (
-                <a
+                <button
                   key={link.name}
-                  href={link.url}
-                  target="_blank"
-                  rel="noopener noreferrer"
+                  type="button"
+                  onClick={() => openPreview(link.url)}
                   className={cn(
                     "flex items-center gap-2 px-4 py-2 rounded border border-border",
                     "bg-card/50 backdrop-blur-sm text-foreground",
@@ -238,7 +255,7 @@ export default function HomePage() {
                 >
                   {link.icon}
                   <span className="font-mono text-sm">{link.name}</span>
-                </a>
+                </button>
               ))}
             </div>
 
@@ -322,6 +339,7 @@ export default function HomePage() {
                           stars={project.stars}
                           url={project.url}
                           isPinned={project.isPinned}
+                          onOpenPreview={openPreview}
                         />
                       </div>
                     ))}
@@ -376,7 +394,8 @@ export default function HomePage() {
                         description={project.description || ""}
                         language={project.language || "Unknown"}
                         stars={project.stars}
-                        url={project.url}
+                          url={project.url}
+                          onOpenPreview={openPreview}
                       />
                     </div>
                   ))}
@@ -384,10 +403,9 @@ export default function HomePage() {
 
             {/* GitHub profile link */}
             <div className="text-center mt-12">
-              <a
-                href="https://github.com/immane"
-                target="_blank"
-                rel="noopener noreferrer"
+              <button
+                type="button"
+                onClick={() => openPreview("https://github.com/immane")}
                 className={cn(
                   "inline-flex items-center gap-2 px-6 py-3 rounded border border-primary",
                   "text-primary font-mono",
@@ -410,7 +428,7 @@ export default function HomePage() {
                     d="M17 8l4 4m0 0l-4 4m4-4H3"
                   />
                 </svg>
-              </a>
+              </button>
             </div>
           </div>
         </section>
@@ -482,6 +500,11 @@ export default function HomePage() {
           </div>
         </footer>
       </div>
+      <WebWindow
+        onClose={closePreview}
+        repository={previewRepository}
+        url={previewUrl}
+      />
     </main>
   );
 }
