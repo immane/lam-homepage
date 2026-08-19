@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useId, useRef, useState } from "react";
+import { CodePreview } from "@/components/code-preview";
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
 
@@ -68,6 +69,7 @@ export function MarkdownPreview({ content }: MarkdownPreviewProps) {
             const code = String(children).replace(/\n$/, "");
 
             if (language === "mermaid") return <MermaidDiagram chart={code} />;
+            if (language) return <CodePreview code={code} language={language} />;
 
             return <code {...props} className={className}>{children}</code>;
           },
