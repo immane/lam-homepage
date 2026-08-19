@@ -275,6 +275,9 @@
 }
 
 .repository-browser-heading {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
   padding: 14px 18px;
   border-bottom: 1px solid color-mix(in oklch, var(--primary) 28%, transparent);
   background: linear-gradient(110deg, color-mix(in oklch, var(--card) 92%, transparent), color-mix(in oklch, var(--primary) 9%, transparent));
@@ -286,9 +289,15 @@
 .repository-browser-owner { color: var(--matrix-green-bright); text-shadow: 0 0 12px color-mix(in oklch, var(--primary) 65%, transparent); }
 .repository-browser-slash { padding: 0 4px; color: var(--matrix-green-dim); }
 
-.repository-browser-body { display: grid; min-height: 0; flex: 1; grid-template-columns: minmax(190px, 28%) 1fr; }
+.repository-sidebar-toggle { padding: 5px 8px; border: 1px solid color-mix(in oklch, var(--primary) 28%, transparent); border-radius: 4px; background: transparent; color: var(--muted-foreground); font: inherit; font-size: 10px; cursor: pointer; transition: all 160ms ease; }
+.repository-sidebar-toggle:hover { border-color: var(--primary); color: var(--matrix-green-bright); }
 
-.repository-files { overflow: auto; border-right: 1px solid color-mix(in oklch, var(--primary) 22%, transparent); background: color-mix(in oklch, var(--matrix-dark) 80%, transparent); }
+.repository-browser-body { display: flex; width: 100%; min-height: 0; flex: 1; }
+.repository-panel-group { width: 100%; min-width: 0; min-height: 0; flex: 1; }
+
+.repository-files { height: 100%; overflow: auto; background: color-mix(in oklch, var(--matrix-dark) 80%, transparent); }
+.repository-resize-handle { position: relative; width: 7px; flex: 0 0 7px; cursor: col-resize; background: color-mix(in oklch, var(--primary) 16%, transparent); transition: background 160ms ease; }
+.repository-resize-handle:hover, .repository-resize-handle[data-resize-handle-active] { background: var(--primary); }
 
 .repository-path {
   position: sticky;
@@ -326,7 +335,7 @@
 .repository-folder-icon { color: var(--primary); }
 .repository-file-icon { color: var(--muted-foreground); }
 
-.repository-preview { min-width: 0; min-height: 0; overflow: auto; background: radial-gradient(circle at top right, color-mix(in oklch, var(--primary) 9%, transparent), transparent 34%), var(--matrix-dark); }
+.repository-preview { height: 100%; min-width: 0; min-height: 0; overflow: auto; background: radial-gradient(circle at top right, color-mix(in oklch, var(--primary) 9%, transparent), transparent 34%), var(--matrix-dark); }
 .repository-preview header { position: sticky; top: 0; padding: 13px 18px; border-bottom: 1px solid color-mix(in oklch, var(--primary) 20%, transparent); background: color-mix(in oklch, var(--card) 90%, transparent); color: var(--muted-foreground); backdrop-filter: blur(12px); }
 .repository-preview pre { margin: 0; padding: 18px; color: var(--foreground); font: inherit; line-height: 1.65; text-shadow: 0 0 8px color-mix(in oklch, var(--primary) 18%, transparent); white-space: pre-wrap; word-break: break-word; }
 .repository-image-preview { display: grid; min-height: 100%; place-items: center; padding: 24px; background: repeating-conic-gradient(color-mix(in oklch, var(--card) 52%, transparent) 0 25%, transparent 0 50%) 50% / 22px 22px; }
@@ -373,7 +382,7 @@
 @media (max-width: 640px) {
   .web-window { width: 92vw; height: 80vh; }
   .web-window-toolbar { grid-template-columns: 1fr minmax(0, 3fr) 1fr; padding: 0 12px; }
-  .repository-browser-body { grid-template-columns: 150px 1fr; }
+  .repository-resize-handle { display: none; }
 }
 
 @media (prefers-reduced-motion: reduce) {
