@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import { MarkdownPreview } from "@/components/markdown-preview";
 
 interface RepositoryBrowserProps {
   owner: string;
@@ -122,7 +123,11 @@ export function RepositoryBrowser({ owner, repository }: RepositoryBrowserProps)
             <>
               <header>{file.entry.path}</header>
               {file.canPreview ? (
-                <pre>{file.content}</pre>
+                /\.mdx?$/i.test(file.entry.name) ? (
+                  <MarkdownPreview content={file.content || ""} />
+                ) : (
+                  <pre>{file.content}</pre>
+                )
               ) : (
                 <p className="repository-status">This file is binary or exceeds the 1 MB preview limit.</p>
               )}
