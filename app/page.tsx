@@ -58,8 +58,8 @@ const socialLinks = [
     ),
   },
   {
-    name: "Website",
-    url: "https://lam.wiki",
+    name: "Email",
+    url: "mailto:me@lam.wiki",
     icon: (
       <svg
         className="w-5 h-5"
@@ -71,7 +71,7 @@ const socialLinks = [
           strokeLinecap="round"
           strokeLinejoin="round"
           strokeWidth={2}
-          d="M21 12a9 9 0 01-9 9m9-9a9 9 0 00-9-9m9 9H3m9 9a9 9 0 01-9-9m9 9c1.657 0 3-4.03 3-9s-1.343-9-3-9m0 18c-1.657 0-3-4.03-3-9s1.343-9 3-9m-9 9a9 9 0 019-9"
+          d="M3 8l7.89 4.26a2.4 2.4 0 002.22 0L21 8m-16 9h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v8a2 2 0 002 2z"
         />
       </svg>
     ),
@@ -248,7 +248,15 @@ export default function HomePage() {
                 <button
                   key={link.name}
                   type="button"
-                  onClick={() => link.url === "#tech-stack" ? scrollToTechStack() : openPreview(link.url)}
+                  onClick={() => {
+                    if (link.url === "#tech-stack") {
+                      scrollToTechStack();
+                    } else if (link.url.startsWith("mailto:")) {
+                      window.location.href = link.url;
+                    } else {
+                      openPreview(link.url);
+                    }
+                  }}
                   className={cn(
                     "flex items-center gap-2 px-4 py-2 rounded border border-border",
                     "bg-card/50 backdrop-blur-sm text-foreground",
@@ -493,7 +501,7 @@ export default function HomePage() {
               <span className="text-primary">$</span> cat footer.txt
             </div>
             <p className="text-muted-foreground text-sm mb-4">
-              Built with Next.js, Tailwind CSS, and lots of coffee
+              Built with lots of coffee
             </p>
             <div className="font-mono text-xs text-muted-foreground">
               <span className="text-primary">&gt;</span> &copy; {new Date().getFullYear()}{" "}

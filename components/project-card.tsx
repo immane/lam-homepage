@@ -125,30 +125,6 @@ export function ProjectCard({
           <span>{stars}</span>
         </div>
       </div>
-
-      {/* Arrow indicator */}
-      <div
-        className={cn(
-          "absolute top-6 right-6 text-primary opacity-0 transition-all duration-300",
-          "group-hover:opacity-100 group-hover:translate-x-1 cursor-pointer"
-        )}
-        onClick={(event) => {
-          event.stopPropagation();
-          window.open(url, "_blank", "noopener,noreferrer");
-        }}
-        onKeyDown={(event) => {
-          if (event.key !== "Enter" && event.key !== " ") return;
-          event.preventDefault();
-          event.stopPropagation();
-          window.open(url, "_blank", "noopener,noreferrer");
-        }}
-        role="link"
-        tabIndex={0}
-      >
-        <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14" />
-        </svg>
-      </div>
     </button>
   );
 }
