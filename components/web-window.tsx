@@ -116,6 +116,8 @@ export function WebWindow({ url, repository, onClose }: WebWindowProps) {
   }, [isDragging]);
 
   // Pointer move/up while resizing
+  // 调整大小时不自动重置居中：保持窗口已移动的位置，仅按拖拽方向伸缩
+  // e/s 保持左/上边不动，w/n 保持右/下边不动，通过 pos 补偿实现，不会重置为居中 (0,0)
   useEffect(() => {
     if (!resizingDir) return;
 
@@ -146,13 +148,11 @@ export function WebWindow({ url, repository, onClose }: WebWindowProps) {
         newTop = startTop + dy;
       }
 
-      // Clamp size
       const maxW = vw - 32;
       const maxH = vh - 32;
       let clampedW = Math.min(Math.max(newW, MIN_W), maxW);
       let clampedH = Math.min(Math.max(newH, MIN_H), maxH);
 
-      // If clamped, adjust left/top for w/n dirs to keep opposite edge fixed
       if (dir.includes("w") && clampedW !== newW) {
         newLeft = startLeft + (startW - clampedW);
       }
@@ -162,33 +162,7 @@ export function WebWindow({ url, repository, onClose }: WebWindowProps) {
       newW = clampedW;
       newH = clampedH;
 
-      // Keep at least 80px visible (prevent dragging completely off-screen via resize)
-      // Clamp left/top so right/bottom stays visible
-      const minLeft = -newW + 80;
-      const maxLeft = vw - 80;
-      const minTop = 0;
-      const maxTop = vh - 80;
-      if (newLeft < minLeft) {
-        // shrink width if left would go too far
-        const overflow = minLeft - newLeft;
-        if (dir.includes("w")) {
-          newLeft = minLeft;
-          newW = Math.max(MIN_W, newW - overflow);
-        } else {
-          newLeft = minLeft;
-        }
-      }
-      if (newLeft > maxLeft) newLeft = maxLeft;
-      if (newTop < minTop) {
-        const overflow = minTop - newTop;
-        if (dir.includes("n")) {
-          newTop = minTop;
-          newH = Math.max(MIN_H, newH - overflow);
-        } else newTop = minTop;
-      }
-      if (newTop > maxTop) newTop = maxTop;
-
-      // Convert back to pos offset (translate from center)
+      // 仅在需要时更新尺寸与偏移，保持已拖拽的位置，不重置居中
       const newPosX = newLeft - (vw - newW) / 2;
       const newPosY = newTop - (vh - newH) / 2;
 
