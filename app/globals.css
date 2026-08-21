@@ -645,7 +645,22 @@
 }
 
 @media (max-width: 640px) {
-  .web-window { width: 92vw; height: 80vh; }
+  .web-window {
+    width: 92vw;
+    height: 80vh;
+    background: var(--card);
+    backdrop-filter: none;
+    -webkit-backdrop-filter: none;
+    box-shadow: 0 16px 48px rgba(0, 0, 0, 0.55), 0 0 20px color-mix(in oklch, var(--primary) 18%, transparent);
+    -webkit-font-smoothing: antialiased;
+    transform: translate(-50%, -50%);
+    animation: none !important;
+  }
+  .web-window.web-window-active {
+    background: var(--card);
+    backdrop-filter: none;
+    -webkit-backdrop-filter: none;
+  }
   .web-window-toolbar { grid-template-columns: 1fr minmax(0, 3fr) 1fr; padding: 0 12px; }
   .repository-resize-handle { display: none; }
   .web-window-minimized-dock { left: 8px; right: 8px; bottom: 8px; }
