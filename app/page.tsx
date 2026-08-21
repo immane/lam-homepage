@@ -116,11 +116,20 @@ function SkeletonCard() {
   );
 }
 
+type WindowEntry = {
+  id: string;
+  url: string;
+  repository: { owner: string; name: string } | null;
+  z: number;
+  minimized: boolean;
+};
+
 export default function HomePage() {
   const [mounted, setMounted] = useState(false);
   const [showContent, setShowContent] = useState(false);
-  const [previewUrl, setPreviewUrl] = useState<string | null>(null);
-  const [previewRepository, setPreviewRepository] = useState<{ owner: string; name: string } | null>(null);
+  const [windows, setWindows] = useState<WindowEntry[]>([]);
+  const [activeId, setActiveId] = useState<string | null>(null);
+  const [nextZ, setNextZ] = useState(210);
 
   const { data, error, isLoading } = useSWR<GitHubData>(
     "/api/github",
@@ -137,6 +146,15 @@ export default function HomePage() {
     return () => clearTimeout(timer);
   }, []);
 
+  // Body scroll lock: only when an active, non-minimized window exists
+  useEffect(() => {
+    const hasActiveVisible = !!activeId && windows.some((w) => w.id === activeId && !w.minimized);
+    document.body.style.overflow = hasActiveVisible ? "hidden" : "";
+    return () => {
+      document.body.style.overflow = "";
+    };
+  }, [activeId, windows]);
+
   if (!mounted) {
     return <LoadingState />;
   }
@@ -152,17 +170,45 @@ export default function HomePage() {
   const openPreview = (url: string) => {
     const parsedUrl = new URL(url);
     const [owner, name] = parsedUrl.pathname.split("/").filter(Boolean);
-
-    setPreviewUrl(url);
-    setPreviewRepository(
-      parsedUrl.hostname === "github.com" && owner && name ? { owner, name } : null
-    );
+    const repository = parsedUrl.hostname === "github.com" && owner && name ? { owner, name } : null;
+    // If same url already open, focus it instead of duplicating
+    const existing = windows.find((w) => w.url === url);
+    if (existing) {
+      setWindows((ws) => ws.map((w) => (w.id === existing.id ? { ...w, minimized: false, z: nextZ } : w)));
+      setActiveId(existing.id);
+      setNextZ((z) => z + 1);
+      return;
+    }
+    const id = `win-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`;
+    setWindows((ws) => [...ws, { id, url, repository, z: nextZ, minimized: false }]);
+    setActiveId(id);
+    setNextZ((z) => z + 1);
   };
 
-  const closePreview = () => {
-    setPreviewUrl(null);
-    setPreviewRepository(null);
+  const closeWindow = (id?: string) => {
+    if (!id) return;
+    setWindows((ws) => ws.filter((w) => w.id !== id));
+    setActiveId((cur) => (cur === id ? null : cur));
   };
+
+  const focusWindow = (id: string) => {
+    setActiveId(id);
+    setWindows((ws) => ws.map((w) => (w.id === id ? { ...w, minimized: false, z: nextZ } : w)));
+    setNextZ((z) => z + 1);
+  };
+
+  const minimizeWindow = (id: string) => {
+    setWindows((ws) => ws.map((w) => (w.id === id ? { ...w, minimized: true } : w)));
+    setActiveId((cur) => (cur === id ? null : cur));
+  };
+
+  const restoreWindow = (id: string) => {
+    setWindows((ws) => ws.map((w) => (w.id === id ? { ...w, minimized: false, z: nextZ } : w)));
+    setActiveId(id);
+    setNextZ((z) => z + 1);
+  };
+
+  const deactivateAll = () => setActiveId(null);
 
   const scrollToTechStack = () => {
     document.getElementById("tech-stack")?.scrollIntoView({ behavior: "smooth" });
@@ -513,11 +559,40 @@ export default function HomePage() {
           </div>
         </footer>
       </div>
-      <WebWindow
-        onClose={closePreview}
-        repository={previewRepository}
-        url={previewUrl}
-      />
+      {/* Multi-window layer: click empty area deactivates, not closes */}
+      {windows.length > 0 && (
+        <div
+          className={`web-window-layer ${windows.length ? "web-window-layer--has-windows" : ""}`}
+          onClick={deactivateAll}
+          aria-hidden
+        >
+          <div
+            className={`web-window-layer__bg ${activeId ? "" : "web-window-layer__bg--inactive"}`}
+            onClick={deactivateAll}
+          />
+        </div>
+      )}
+      {windows.map((w, idx) => {
+        const minimizedIdx = windows.filter((x) => x.minimized).findIndex((x) => x.id === w.id);
+        return (
+          <WebWindow
+            key={w.id}
+            id={w.id}
+            url={w.url}
+            repository={w.repository}
+            active={activeId === w.id}
+            zIndex={w.z}
+            onClose={closeWindow}
+            onFocus={focusWindow}
+            dockIndex={w.minimized ? minimizedIdx : undefined}
+            minimized={w.minimized}
+            onMinimize={minimizeWindow}
+            onRestore={restoreWindow}
+          />
+        );
+      })}
+      {/* Dock container for minimized windows (alternative stacking via WebWindow dockIndex) */}
+      {windows.some((w) => w.minimized) && <div className="web-window-dock" aria-hidden />}
     </main>
   );
 }

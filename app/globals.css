@@ -181,7 +181,33 @@
   background: var(--matrix-green);
 }
 
-/* A self-contained browser surface so its iframe can later be replaced with a custom GitHub view. */
+/* Multi-window layer - captures clicks on empty area to deactivate */
+.web-window-layer {
+  position: fixed;
+  inset: 0;
+  z-index: 200;
+  pointer-events: none;
+}
+
+.web-window-layer--has-windows {
+  pointer-events: auto;
+}
+
+.web-window-layer__bg {
+  position: absolute;
+  inset: 0;
+  background: color-mix(in oklch, var(--matrix-dark) 55%, transparent);
+  animation: web-window-backdrop-in 240ms ease-out both;
+  pointer-events: auto;
+}
+
+.web-window-layer__bg--inactive {
+  background: transparent;
+  animation: none;
+  pointer-events: none;
+}
+
+/* Legacy backdrop kept for single-window compat, now also used as invisible hit area */
 .web-window-backdrop {
   position: fixed;
   z-index: 200;
@@ -194,7 +220,9 @@
 }
 
 .web-window {
-  position: relative;
+  position: fixed;
+  left: 50%;
+  top: 50%;
   display: flex;
   width: min(80vw, 1440px);
   height: min(80vh, 960px);
@@ -206,6 +234,7 @@
   box-shadow: 0 32px 100px rgba(0, 0, 0, 0.68), 0 0 46px color-mix(in oklch, var(--primary) 24%, transparent), inset 0 0 48px color-mix(in oklch, var(--primary) 5%, transparent);
   backdrop-filter: blur(16px);
   animation: web-window-in 420ms cubic-bezier(0.16, 1, 0.3, 1) both;
+  transform: translate(-50%, -50%);
 }
 
 .web-window.web-window-resizing {
@@ -216,6 +245,22 @@
 
 .web-window.web-window-moved {
   animation: none !important;
+}
+
+.web-window.web-window-inactive {
+  opacity: 0.78;
+  filter: saturate(0.55) brightness(0.92);
+  box-shadow: 0 16px 48px rgba(0, 0, 0, 0.45), inset 0 0 24px transparent;
+}
+
+.web-window.web-window-inactive .web-window-toolbar {
+  background: color-mix(in oklch, var(--card) 52%, transparent);
+  border-bottom-color: color-mix(in oklch, var(--border) 65%, transparent);
+}
+
+.web-window.web-window-active {
+  opacity: 1;
+  filter: none;
 }
 
 .web-window-toolbar {
@@ -248,6 +293,8 @@
 
 /* When window has been dragged, the entrance transform is superseded by inline translate; keep backdrop centered */
 .web-window-maximized {
+  left: 0 !important;
+  top: 0 !important;
   width: 100vw !important;
   height: 100vh !important;
   max-width: none !important;
@@ -255,6 +302,7 @@
   border-radius: 0 !important;
   border: none !important;
   animation: none !important;
+  transform: none !important;
 }
 
 .web-window-backdrop-maximized {
@@ -431,7 +479,21 @@
   to { opacity: 1; transform: perspective(1200px) translateY(0) scale(1) rotateX(0); }
 }
 
-/* Minimized dock / taskbar */
+/* Dock container for multiple minimized windows */
+.web-window-dock {
+  position: fixed;
+  z-index: 220;
+  left: 16px;
+  bottom: 16px;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  pointer-events: none;
+}
+
+.web-window-dock:empty { display: none; }
+
+/* Minimized dock / taskbar - single window legacy, now also used inside dock */
 .web-window-minimized-dock {
   position: fixed;
   z-index: 210;
@@ -441,6 +503,14 @@
   align-items: center;
   gap: 8px;
   animation: web-window-minimized-in 220ms cubic-bezier(0.16, 1, 0.3, 1) both;
+  pointer-events: auto;
+}
+
+.web-window-dock .web-window-minimized-dock {
+  position: relative;
+  left: auto;
+  bottom: auto;
+  z-index: auto;
 }
 
 .web-window-minimized-bar {
