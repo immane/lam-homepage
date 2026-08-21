@@ -559,10 +559,10 @@ export default function HomePage() {
           </div>
         </footer>
       </div>
-      {/* Multi-window layer: click empty area deactivates, not closes */}
+      {/* Multi-window layer: click empty area deactivates, not closes; only active layer blocks background */}
       {windows.length > 0 && (
         <div
-          className={`web-window-layer ${windows.length ? "web-window-layer--has-windows" : ""}`}
+          className={`web-window-layer ${activeId ? "web-window-layer--has-windows" : ""}`}
           onClick={deactivateAll}
           aria-hidden
         >

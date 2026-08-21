@@ -346,18 +346,31 @@ export function WebWindow({
         title={isDragging ? "Dragging" : "Drag to move · Double-click to maximize"}
       >
         <div className="web-window-controls">
-          <button aria-label="Close preview" className="web-window-control web-window-close" onClick={handleClose} type="button" />
+          <button
+            aria-label="Close preview"
+            className="web-window-control web-window-close"
+            onClick={(e) => {
+              e.stopPropagation();
+              handleClose();
+            }}
+            type="button"
+          />
           <button
             aria-label="Minimize preview"
             className="web-window-control web-window-minimize"
-            onClick={() => setIsMinimized(true)}
+            onClick={(e) => {
+              e.stopPropagation();
+              setIsMinimized(true);
+            }}
             type="button"
             title="Minimize"
           />
           <button
             aria-label={isMaximized ? "Restore preview" : "Maximize preview"}
             className="web-window-control web-window-maximize"
-            onClick={() => {
+            onClick={(e) => {
+              e.stopPropagation();
+              handleFocus();
               if (isMaximized) setIsMaximized(false);
               else {
                 setPos({ x: 0, y: 0 });
@@ -392,6 +405,17 @@ export function WebWindow({
         </a>
       </header>
       <div className="web-window-content">
+        {!active && !isMinimized && (
+          <button
+            aria-label={`Focus ${hostname}`}
+            className="web-window-inactive-overlay"
+            onClick={(e) => {
+              e.stopPropagation();
+              handleFocus();
+            }}
+            type="button"
+          />
+        )}
         {repository ? (
           <RepositoryBrowser owner={repository.owner} repository={repository.name} />
         ) : (
