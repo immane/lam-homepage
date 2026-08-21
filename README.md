@@ -2,7 +2,7 @@
 
 Immersive Matrix-themed GitHub portfolio — live GitHub data, multi-window repository preview, draggable / resizable / minimizable Hacker Terminal experience.
 
-<p align="center">
+<p>
   <img src="https://img.shields.io/badge/Next.js-16-black?logo=next.js" alt="Next.js" />
   <img src="https://img.shields.io/badge/React-19-61dafb?logo=react" alt="React" />
   <img src="https://img.shields.io/badge/TypeScript-5-3178c6?logo=typescript" alt="TS" />
@@ -10,7 +10,7 @@ Immersive Matrix-themed GitHub portfolio — live GitHub data, multi-window repo
   <img src="https://img.shields.io/badge/Matrix-%2300ff41-001a0d" alt="Matrix" />
 </p>
 
-<p align="center">
+<p>
   <a href="https://github.com/immane/lam-homepage">GitHub</a> · <a href="#live-preview">Live Preview</a> · <a href="#features">Features</a> · <a href="#quick-start">Quick Start</a>
 </p>
 
@@ -145,4 +145,4 @@ GitHub Token only needs `public_repo` read permission for GraphQL Pinned and hig
 
 MIT — Free for personal portfolio use, please credit Matrix style and window interactions if reused.
 
-<p align="center">Built with lots of coffee · Matrix forever</p>
+Built with lots of coffee · Matrix forever
