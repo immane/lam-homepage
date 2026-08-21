@@ -250,16 +250,23 @@ export function MatrixRain() {
   const canvasRef = useRef<HTMLCanvasElement>(null);
 
   useEffect(() => {
+    if (typeof window !== "undefined" && window.matchMedia("(prefers-reduced-motion: reduce)").matches) return;
     const canvas = canvasRef.current;
     if (!canvas) return;
 
     const fontSize = 16;
-    const columnWidth = 18;
+    const columnWidth = 22;
     let animationFrame = 0;
     let lastFrame = performance.now();
     let rows = 0;
     let streams: Stream[] = [];
     let renderer: Renderer | null = null;
+
+    let hiddenUntil = 0;
+    const onVisibility = () => {
+      if (document.hidden) hiddenUntil = performance.now() + 1000;
+    };
+    document.addEventListener("visibilitychange", onVisibility);
 
     const nextGlyph = (stream: Stream) => glyphs[Math.floor(stream.random() * glyphs.length)];
 
@@ -301,7 +308,12 @@ export function MatrixRain() {
       renderer = createWebGlRenderer(canvas, pixelRatio) ?? createCanvasRenderer(canvas, pixelRatio);
     };
 
+    let frameSkip = 0;
     const draw = (timestamp: number) => {
+      if (document.hidden || timestamp < hiddenUntil) {
+        animationFrame = requestAnimationFrame(draw);
+        return;
+      }
       const elapsed = Math.min(timestamp - lastFrame, 100);
       lastFrame = timestamp;
       const items: Glyph[] = [];
@@ -331,7 +343,10 @@ export function MatrixRain() {
         });
       });
 
-      renderer?.draw(items);
+      // Throttle draw on mobile: skip every other frame but keep stream updates
+      frameSkip = (frameSkip + 1) % 2;
+      const shouldDraw = !(frameSkip === 0 && window.innerWidth < 768);
+      if (shouldDraw) renderer?.draw(items);
       animationFrame = requestAnimationFrame(draw);
     };
 
@@ -342,6 +357,7 @@ export function MatrixRain() {
     return () => {
       cancelAnimationFrame(animationFrame);
       window.removeEventListener("resize", resizeCanvas);
+      document.removeEventListener("visibilitychange", onVisibility);
       renderer?.destroy();
     };
   }, []);

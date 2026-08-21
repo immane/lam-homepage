@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useId, useRef, useState } from "react";
+import { useEffect, useId, useRef, useState, memo, useMemo } from "react";
 import { CodePreview } from "@/components/code-preview";
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
@@ -63,7 +63,7 @@ function githubRepositoryPath(url: string, owner: string, repository: string) {
   }
 }
 
-function MermaidDiagram({ chart }: { chart: string }) {
+const MermaidDiagram = memo(function MermaidDiagram({ chart }: { chart: string }) {
   const containerRef = useRef<HTMLDivElement>(null);
   const id = useId().replace(/:/g, "");
   const [error, setError] = useState<string | null>(null);
@@ -105,9 +105,9 @@ function MermaidDiagram({ chart }: { chart: string }) {
 
   if (error) return <p className="mermaid-error">{error}</p>;
   return <div className="mermaid-diagram" ref={containerRef}>Rendering diagram...</div>;
-}
+});
 
-export function MarkdownPreview({ content, owner, repository, path, onNavigate }: MarkdownPreviewProps) {
+export const MarkdownPreview = memo(function MarkdownPreview({ content, owner, repository, path, onNavigate }: MarkdownPreviewProps) {
   const resolveAssetUrl = (url: string) => {
     const githubPath = githubRepositoryPath(url, owner, repository);
     if (isExternalUrl(url) && !githubPath) return url;
@@ -115,8 +115,9 @@ export function MarkdownPreview({ content, owner, repository, path, onNavigate }
     return `/api/github/${encodeURIComponent(owner)}/${encodeURIComponent(repository)}/contents?${new URLSearchParams({ path: assetPath, raw: "1" })}`;
   };
 
+  const remarkPlugins = useMemo(() => [remarkGfm], []);
   return (
-    <div className="markdown-preview">
+    <div className="markdown-preview" style={{ contentVisibility: "auto", containIntrinsicSize: "600px 400px" } as React.CSSProperties}>
       <ReactMarkdown
         components={{
           a({ href, children, ...props }) {
@@ -155,10 +156,10 @@ export function MarkdownPreview({ content, owner, repository, path, onNavigate }
             return <code {...props} className={className}>{children}</code>;
           },
         }}
-        remarkPlugins={[remarkGfm]}
+        remarkPlugins={remarkPlugins}
       >
         {content}
       </ReactMarkdown>
     </div>
   );
-}
+});

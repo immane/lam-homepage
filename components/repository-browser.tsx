@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useRef, useState, useCallback, memo, useMemo } from "react";
 import {
   Panel,
   PanelGroup,
@@ -40,7 +40,7 @@ type ContentResponse = DirectoryResponse | FileResponse;
 
 const imageFile = /\.(avif|bmp|gif|jpe?g|png|svg|webp)$/i;
 
-export function RepositoryBrowser({ owner, repository }: RepositoryBrowserProps) {
+export const RepositoryBrowser = memo(function RepositoryBrowser({ owner, repository }: RepositoryBrowserProps) {
   const [directory, setDirectory] = useState<DirectoryResponse | null>(null);
   const [file, setFile] = useState<FileResponse | null>(null);
   const [loading, setLoading] = useState(true);
@@ -48,28 +48,24 @@ export function RepositoryBrowser({ owner, repository }: RepositoryBrowserProps)
   const [sidebarOpen, setSidebarOpen] = useState(true);
   const sidebarRef = useRef<ImperativePanelHandle>(null);
 
-  const loadPath = async (path: string): Promise<ContentResponse | null> => {
+  const loadPath = useCallback(async (path: string): Promise<ContentResponse | null> => {
     setLoading(true);
     setError(null);
-
     try {
       const query = new URLSearchParams(path ? { path } : undefined);
       const response = await fetch(
         `/api/github/${encodeURIComponent(owner)}/${encodeURIComponent(repository)}/contents?${query}`
       );
       const data: ContentResponse | { error: string } = await response.json();
-
       if (!response.ok || "error" in data) {
         throw new Error("error" in data ? data.error : "Unable to load repository content");
       }
-
       if (data.kind === "directory") {
         setDirectory(data);
         setFile(null);
       } else {
         setFile(data);
       }
-
       return data;
     } catch (cause) {
       setError(cause instanceof Error ? cause.message : "Unable to load repository content");
@@ -77,22 +73,18 @@ export function RepositoryBrowser({ owner, repository }: RepositoryBrowserProps)
     } finally {
       setLoading(false);
     }
-  };
+  }, [owner, repository]);
 
-  const loadDirectory = async (path: string) => {
+  const loadDirectory = useCallback(async (path: string) => {
     const content = await loadPath(path);
     if (content?.kind !== "directory") return;
-
-    const defaultFile = content.entries.find(
-      (entry) => entry.name.toLowerCase() === "readme.md"
-    ) || content.entries.find((entry) => entry.type === "file");
-
+    const defaultFile = content.entries.find((entry) => entry.name.toLowerCase() === "readme.md") || content.entries.find((entry) => entry.type === "file");
     if (defaultFile) await loadPath(defaultFile.path);
-  };
+  }, [loadPath]);
 
   useEffect(() => {
     void loadDirectory("");
-  }, [owner, repository]);
+  }, [loadDirectory]);
 
   useEffect(() => {
     const mobileViewport = window.matchMedia("(max-width: 640px)");
@@ -103,10 +95,10 @@ export function RepositoryBrowser({ owner, repository }: RepositoryBrowserProps)
   }, []);
 
   const currentPath = directory?.path || "";
-  const parentPath = currentPath.split("/").slice(0, -1).join("/");
-  const previewImageUrl = file && imageFile.test(file.entry.name)
+  const parentPath = useMemo(() => currentPath.split("/").slice(0, -1).join("/"), [currentPath]);
+  const previewImageUrl = useMemo(() => file && imageFile.test(file.entry.name)
     ? `/api/github/${encodeURIComponent(owner)}/${encodeURIComponent(repository)}/contents?${new URLSearchParams({ path: file.entry.path, raw: "1" })}`
-    : null;
+    : null, [file, owner, repository]);
 
   const toggleSidebar = () => {
     if (sidebarOpen) {
@@ -117,7 +109,7 @@ export function RepositoryBrowser({ owner, repository }: RepositoryBrowserProps)
   };
 
   return (
-    <div className="repository-browser">
+    <div className="repository-browser" style={{ contentVisibility: "auto" } as React.CSSProperties}>
       <div className="repository-browser-heading">
         <div>
           <span className="repository-browser-owner">{owner}</span>
@@ -178,7 +170,7 @@ export function RepositoryBrowser({ owner, repository }: RepositoryBrowserProps)
                   <header>{file.entry.path}</header>
                   {previewImageUrl ? (
                     <div className="repository-image-preview">
-                      <img alt={file.entry.name} src={previewImageUrl} />
+                      <img alt={file.entry.name} src={previewImageUrl} loading="lazy" decoding="async" />
                     </div>
                   ) : file.canPreview ? (
                     /\.mdx?$/i.test(file.entry.name) ? (
@@ -208,4 +200,4 @@ export function RepositoryBrowser({ owner, repository }: RepositoryBrowserProps)
       </div>
     </div>
   );
-}
+});

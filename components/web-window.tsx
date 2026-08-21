@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useRef, useState, useCallback } from "react";
+import { useEffect, useRef, useState, useCallback, memo } from "react";
 import { RepositoryBrowser } from "@/components/repository-browser";
 
 interface WebWindowProps {
@@ -23,7 +23,7 @@ type ResizeDir = "n" | "s" | "e" | "w" | "ne" | "nw" | "se" | "sw";
 const MIN_W = 360;
 const MIN_H = 280;
 
-export function WebWindow({
+function WebWindowInner({
   id,
   url,
   repository,
@@ -51,8 +51,18 @@ export function WebWindow({
   const [isMaximized, setIsMaximized] = useState(false);
   const [pos, setPos] = useState({ x: 0, y: 0 });
   const [size, setSize] = useState<{ w: number; h: number } | null>(null);
+  const posRef = useRef(pos);
+  const sizeRef = useRef(size);
   const [isDragging, setIsDragging] = useState(false);
   const [resizingDir, setResizingDir] = useState<ResizeDir | null>(null);
+  const rafRef = useRef<number | null>(null);
+
+  useEffect(() => {
+    posRef.current = pos;
+  }, [pos]);
+  useEffect(() => {
+    sizeRef.current = size;
+  }, [size]);
 
   const dragState = useRef({
     startX: 0,
@@ -75,20 +85,21 @@ export function WebWindow({
     startPosY: 0,
   });
 
-  // Reset position/min/max when url changes (new window instance will remount via key, but keep for compat)
-  useEffect(() => {
-    if (url || repository) {
-      // only reset on mount of new id, not on every active toggle
-      // keep pos/size if already set?
-    }
-  }, [id]);
-
-  // Reset when id changes - use staggered initial offset for new windows
   useEffect(() => {
     setIsMinimized(false);
     setIsMaximized(false);
-    setPos(initialOffset ? { x: initialOffset.x, y: initialOffset.y } : { x: 0, y: 0 });
+    const p = initialOffset ? { x: initialOffset.x, y: initialOffset.y } : { x: 0, y: 0 };
+    setPos(p);
+    posRef.current = p;
     setSize(null);
+    sizeRef.current = null;
+    // also reset DOM transform directly to avoid stale
+    if (windowRef.current && !isMaximized) {
+      const t = p.x !== 0 || p.y !== 0 ? `translate(calc(-50% + ${p.x}px), calc(-50% + ${p.y}px))` : `translate(-50%, -50%)`;
+      windowRef.current.style.transform = t;
+      windowRef.current.style.width = "";
+      windowRef.current.style.height = "";
+    }
   }, [id, initialOffset]);
 
   useEffect(() => {
@@ -98,7 +109,6 @@ export function WebWindow({
       if (!id) document.body.style.overflow = "";
       return;
     }
-    // only active window handles Escape
     if (!active) return;
     const closeOnEscape = (event: KeyboardEvent) => {
       if (event.key === "Escape") onClose(id);
@@ -111,7 +121,6 @@ export function WebWindow({
     };
   }, [url, repository, onClose, isMinimized, active, id]);
 
-  // Also keep body overflow hidden when any window exists (fallback for single)
   useEffect(() => {
     if (id) return;
     const hasWindow = Boolean(url || repository);
@@ -121,92 +130,129 @@ export function WebWindow({
     };
   }, [id, url, repository, isMinimized]);
 
+  // Sync DOM transform/size when pos/size state changes (for non-drag updates like maximize)
+  useEffect(() => {
+    if (!windowRef.current || isMaximized || isDragging || resizingDir) return;
+    const el = windowRef.current;
+    const t = pos.x !== 0 || pos.y !== 0 ? `translate(calc(-50% + ${pos.x}px), calc(-50% + ${pos.y}px))` : `translate(-50%, -50%)`;
+    el.style.transform = t;
+    if (size) {
+      el.style.width = `${size.w}px`;
+      el.style.height = `${size.h}px`;
+    } else {
+      el.style.width = "";
+      el.style.height = "";
+    }
+  }, [pos, size, isMaximized, isDragging, resizingDir]);
+
   useEffect(() => {
     if (!isDragging) return;
     const onPointerMove = (event: PointerEvent) => {
-      const dx = event.clientX - dragState.current.startX;
-      const dy = event.clientY - dragState.current.startY;
-      let nextX = dragState.current.originX + dx;
-      let nextY = dragState.current.originY + dy;
-      const vw = window.innerWidth;
-      const vh = window.innerHeight;
-      const w = dragState.current.w || 800;
-      const h = dragState.current.h || 600;
-      // pos is offset from center (left 50% + translate)
-      // centerLeft = (vw - w)/2, absLeft = centerLeft + nextX
-      const centerLeft = (vw - w) / 2;
-      const centerTop = (vh - h) / 2;
-      const minLeft = -w + 80;
-      const maxLeft = vw - 80;
-      const minTop = 0;
-      const maxTop = vh - 48;
-      const absLeft = centerLeft + nextX;
-      const absTop = centerTop + nextY;
-      const clampedLeft = Math.min(Math.max(absLeft, minLeft), maxLeft);
-      const clampedTop = Math.min(Math.max(absTop, minTop), maxTop);
-      nextX = clampedLeft - centerLeft;
-      nextY = clampedTop - centerTop;
-      setPos({ x: nextX, y: nextY });
+      if (rafRef.current) cancelAnimationFrame(rafRef.current);
+      rafRef.current = requestAnimationFrame(() => {
+        const dx = event.clientX - dragState.current.startX;
+        const dy = event.clientY - dragState.current.startY;
+        let nextX = dragState.current.originX + dx;
+        let nextY = dragState.current.originY + dy;
+        const vw = window.innerWidth;
+        const vh = window.innerHeight;
+        const w = dragState.current.w || 800;
+        const h = dragState.current.h || 600;
+        const centerLeft = (vw - w) / 2;
+        const centerTop = (vh - h) / 2;
+        const minLeft = -w + 80;
+        const maxLeft = vw - 80;
+        const minTop = 0;
+        const maxTop = vh - 48;
+        const absLeft = centerLeft + nextX;
+        const absTop = centerTop + nextY;
+        const clampedLeft = Math.min(Math.max(absLeft, minLeft), maxLeft);
+        const clampedTop = Math.min(Math.max(absTop, minTop), maxTop);
+        nextX = clampedLeft - centerLeft;
+        nextY = clampedTop - centerTop;
+        posRef.current = { x: nextX, y: nextY };
+        if (windowRef.current) {
+          windowRef.current.style.transform = `translate(calc(-50% + ${nextX}px), calc(-50% + ${nextY}px))`;
+        }
+      });
     };
-    const onPointerUp = () => setIsDragging(false);
+    const onPointerUp = () => {
+      if (rafRef.current) cancelAnimationFrame(rafRef.current);
+      setPos(posRef.current);
+      setIsDragging(false);
+    };
     window.addEventListener("pointermove", onPointerMove);
     window.addEventListener("pointerup", onPointerUp);
     return () => {
       window.removeEventListener("pointermove", onPointerMove);
       window.removeEventListener("pointerup", onPointerUp);
+      if (rafRef.current) cancelAnimationFrame(rafRef.current);
     };
   }, [isDragging]);
 
-  // Pointer move/up while resizing - keep moved position, not resetting to center
   useEffect(() => {
     if (!resizingDir) return;
     const onPointerMove = (event: PointerEvent) => {
-      const dx = event.clientX - resizeState.current.startX;
-      const dy = event.clientY - resizeState.current.startY;
-      const vw = window.innerWidth;
-      const vh = window.innerHeight;
-      const dir = resizeState.current.dir;
-      const startW = resizeState.current.startW;
-      const startH = resizeState.current.startH;
-      const startLeft = resizeState.current.startLeft;
-      const startTop = resizeState.current.startTop;
-      let newW = startW;
-      let newH = startH;
-      let newLeft = startLeft;
-      let newTop = startTop;
-      if (dir.includes("e")) newW = startW + dx;
-      if (dir.includes("w")) {
-        newW = startW - dx;
-        newLeft = startLeft + dx;
-      }
-      if (dir.includes("s")) newH = startH + dy;
-      if (dir.includes("n")) {
-        newH = startH - dy;
-        newTop = startTop + dy;
-      }
-      const maxW = vw - 32;
-      const maxH = vh - 32;
-      let clampedW = Math.min(Math.max(newW, MIN_W), maxW);
-      let clampedH = Math.min(Math.max(newH, MIN_H), maxH);
-      if (dir.includes("w") && clampedW !== newW) {
-        newLeft = startLeft + (startW - clampedW);
-      }
-      if (dir.includes("n") && clampedH !== newH) {
-        newTop = startTop + (startH - clampedH);
-      }
-      newW = clampedW;
-      newH = clampedH;
-      const newPosX = newLeft - (vw - newW) / 2;
-      const newPosY = newTop - (vh - newH) / 2;
-      setSize({ w: newW, h: newH });
-      setPos({ x: newPosX, y: newPosY });
+      if (rafRef.current) cancelAnimationFrame(rafRef.current);
+      rafRef.current = requestAnimationFrame(() => {
+        const dx = event.clientX - resizeState.current.startX;
+        const dy = event.clientY - resizeState.current.startY;
+        const vw = window.innerWidth;
+        const vh = window.innerHeight;
+        const dir = resizeState.current.dir;
+        const startW = resizeState.current.startW;
+        const startH = resizeState.current.startH;
+        const startLeft = resizeState.current.startLeft;
+        const startTop = resizeState.current.startTop;
+        let newW = startW;
+        let newH = startH;
+        let newLeft = startLeft;
+        let newTop = startTop;
+        if (dir.includes("e")) newW = startW + dx;
+        if (dir.includes("w")) {
+          newW = startW - dx;
+          newLeft = startLeft + dx;
+        }
+        if (dir.includes("s")) newH = startH + dy;
+        if (dir.includes("n")) {
+          newH = startH - dy;
+          newTop = startTop + dy;
+        }
+        const maxW = vw - 32;
+        const maxH = vh - 32;
+        let clampedW = Math.min(Math.max(newW, MIN_W), maxW);
+        let clampedH = Math.min(Math.max(newH, MIN_H), maxH);
+        if (dir.includes("w") && clampedW !== newW) {
+          newLeft = startLeft + (startW - clampedW);
+        }
+        if (dir.includes("n") && clampedH !== newH) {
+          newTop = startTop + (startH - clampedH);
+        }
+        newW = clampedW;
+        newH = clampedH;
+        const newPosX = newLeft - (vw - newW) / 2;
+        const newPosY = newTop - (vh - newH) / 2;
+        posRef.current = { x: newPosX, y: newPosY };
+        sizeRef.current = { w: newW, h: newH };
+        if (windowRef.current) {
+          windowRef.current.style.transform = `translate(calc(-50% + ${newPosX}px), calc(-50% + ${newPosY}px))`;
+          windowRef.current.style.width = `${newW}px`;
+          windowRef.current.style.height = `${newH}px`;
+        }
+      });
     };
-    const onPointerUp = () => setResizingDir(null);
+    const onPointerUp = () => {
+      if (rafRef.current) cancelAnimationFrame(rafRef.current);
+      setPos(posRef.current);
+      setSize(sizeRef.current);
+      setResizingDir(null);
+    };
     window.addEventListener("pointermove", onPointerMove);
     window.addEventListener("pointerup", onPointerUp);
     return () => {
       window.removeEventListener("pointermove", onPointerMove);
       window.removeEventListener("pointerup", onPointerUp);
+      if (rafRef.current) cancelAnimationFrame(rafRef.current);
     };
   }, [resizingDir]);
 
@@ -225,8 +271,8 @@ export function WebWindow({
       dragState.current = {
         startX: event.clientX,
         startY: event.clientY,
-        originX: pos.x,
-        originY: pos.y,
+        originX: posRef.current.x,
+        originY: posRef.current.y,
         w: rect?.width ?? 0,
         h: rect?.height ?? 0,
       };
@@ -234,7 +280,7 @@ export function WebWindow({
       (event.currentTarget as HTMLElement).setPointerCapture?.(event.pointerId);
       event.preventDefault();
     },
-    [isMaximized, resizingDir, pos.x, pos.y, handleFocus]
+    [isMaximized, resizingDir, handleFocus]
   );
 
   const onResizePointerDown = useCallback(
@@ -253,13 +299,13 @@ export function WebWindow({
         startH: rect.height,
         startLeft: rect.left,
         startTop: rect.top,
-        startPosX: pos.x,
-        startPosY: pos.y,
+        startPosX: posRef.current.x,
+        startPosY: posRef.current.y,
       };
       setResizingDir(dir);
       (event.currentTarget as HTMLElement).setPointerCapture?.(event.pointerId);
     },
-    [isMaximized, pos.x, pos.y, handleFocus]
+    [isMaximized, handleFocus]
   );
 
   const handleClose = useCallback(() => onClose(id), [onClose, id]);
@@ -297,9 +343,8 @@ export function WebWindow({
     );
   }
 
-  const isMoved = pos.x !== 0 || pos.y !== 0 || size !== null;
+  const isMoved = posRef.current.x !== 0 || posRef.current.y !== 0 || sizeRef.current !== null || pos.x !== 0 || pos.y !== 0 || size !== null;
 
-  // For multi-window, use fixed + translate(-50% + pos)
   const transformValue =
     pos.x !== 0 || pos.y !== 0
       ? `translate(calc(-50% + ${pos.x}px), calc(-50% + ${pos.y}px))`
@@ -313,8 +358,6 @@ export function WebWindow({
         ...(size ? { width: size.w, height: size.h } : {}),
       };
 
-  // Legacy single-window used backdrop grid + translate(pos). Now fixed centering.
-  // Keep backdrop for single-window compat when no id? For multi, we render without backdrop.
   const useBackdrop = !id;
 
   const windowContent = (
@@ -375,7 +418,10 @@ export function WebWindow({
               handleFocus();
               if (isMaximized) setIsMaximized(false);
               else {
-                setPos({ x: 0, y: 0 });
+                const p = { x: 0, y: 0 };
+                setPos(p);
+                posRef.current = p;
+                if (windowRef.current) windowRef.current.style.transform = `translate(-50%, -50%)`;
                 setIsMaximized(true);
               }
             }}
@@ -421,7 +467,7 @@ export function WebWindow({
         {repository ? (
           <RepositoryBrowser owner={repository.owner} repository={repository.name} />
         ) : (
-          <iframe className="web-window-frame" src={url!} title={hostname} />
+          <iframe className="web-window-frame" src={url!} title={hostname} loading="lazy" />
         )}
       </div>
       {!isMaximized && (
@@ -449,3 +495,5 @@ export function WebWindow({
 
   return windowContent;
 }
+
+export const WebWindow = memo(WebWindowInner);
