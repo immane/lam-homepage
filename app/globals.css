@@ -415,14 +415,17 @@
 .repository-path {
   position: sticky;
   top: 0;
+  z-index: 2;
   display: flex;
   gap: 8px;
   align-items: center;
   min-height: 42px;
   padding: 0 12px;
   border-bottom: 1px solid color-mix(in oklch, var(--primary) 18%, transparent);
-  background: color-mix(in oklch, var(--card) 82%, transparent);
+  background: color-mix(in oklch, var(--card) 94%, transparent);
   color: var(--muted-foreground);
+  backdrop-filter: blur(8px);
+  -webkit-backdrop-filter: blur(8px);
 }
 
 .repository-path button, .repository-entry {
@@ -449,7 +452,7 @@
 .repository-file-icon { color: var(--muted-foreground); }
 
 .repository-preview { height: 100%; min-width: 0; min-height: 0; overflow: auto; background: radial-gradient(circle at top right, color-mix(in oklch, var(--primary) 9%, transparent), transparent 34%), var(--matrix-dark); }
-.repository-preview header { position: sticky; top: 0; padding: 13px 18px; border-bottom: 1px solid color-mix(in oklch, var(--primary) 20%, transparent); background: color-mix(in oklch, var(--card) 90%, transparent); color: var(--muted-foreground); backdrop-filter: blur(12px); }
+.repository-preview header { position: sticky; top: 0; z-index: 3; padding: 13px 18px; border-bottom: 1px solid color-mix(in oklch, var(--primary) 20%, transparent); background: color-mix(in oklch, var(--card) 96%, transparent); color: var(--muted-foreground); backdrop-filter: blur(12px); -webkit-backdrop-filter: blur(12px); }
 .repository-preview pre { margin: 0; padding: 18px; color: var(--foreground); font: inherit; line-height: 1.65; text-shadow: 0 0 8px color-mix(in oklch, var(--primary) 18%, transparent); white-space: pre-wrap; word-break: break-word; }
 .repository-image-preview { display: grid; min-height: 100%; place-items: center; padding: 24px; background: repeating-conic-gradient(color-mix(in oklch, var(--card) 52%, transparent) 0 25%, transparent 0 50%) 50% / 22px 22px; }
 .repository-image-preview img { max-width: 100%; max-height: 100%; border: 1px solid color-mix(in oklch, var(--primary) 35%, transparent); border-radius: 5px; box-shadow: 0 0 28px color-mix(in oklch, var(--primary) 16%, transparent); object-fit: contain; }
