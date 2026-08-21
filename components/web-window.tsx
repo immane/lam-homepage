@@ -263,6 +263,8 @@ export function WebWindow({ url, repository, onClose }: WebWindowProps) {
     );
   }
 
+  const isMoved = pos.x !== 0 || pos.y !== 0 || size !== null;
+
   return (
     <div
       className={isMaximized ? "web-window-backdrop web-window-backdrop-maximized" : "web-window-backdrop"}
@@ -280,7 +282,9 @@ export function WebWindow({ url, repository, onClose }: WebWindowProps) {
               ? "web-window web-window-dragging"
               : resizingDir
                 ? `web-window web-window-resizing web-window-resizing-${resizingDir}`
-                : "web-window"
+                : isMoved
+                  ? "web-window web-window-moved"
+                  : "web-window"
         }
         onClick={(event) => event.stopPropagation()}
         role="dialog"

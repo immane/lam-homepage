@@ -214,6 +214,10 @@
   animation: none !important;
 }
 
+.web-window.web-window-moved {
+  animation: none !important;
+}
+
 .web-window-toolbar {
   display: grid;
   grid-template-columns: 1fr minmax(0, 2fr) 1fr;
