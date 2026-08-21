@@ -60,12 +60,10 @@ export function ProjectCard({
         </div>
       )}
 
-      {/* Terminal header */}
+      {/* Terminal header - only red dot */}
       <div className="flex items-center gap-2 mb-4 pb-3 border-b border-border">
         <div className="flex gap-1.5">
           <div className="w-3 h-3 rounded-full bg-red-500/80" />
-          <div className="w-3 h-3 rounded-full bg-yellow-500/80" />
-          <div className="w-3 h-3 rounded-full bg-green-500/80" />
         </div>
         <span className="text-xs text-muted-foreground font-mono ml-2 flex-1 truncate">
           ~/projects/{name}

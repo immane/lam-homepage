@@ -101,8 +101,6 @@ function SkeletonCard() {
       <div className="flex items-center gap-2 mb-4 pb-3 border-b border-border">
         <div className="flex gap-1.5">
           <div className="w-3 h-3 rounded-full bg-muted" />
-          <div className="w-3 h-3 rounded-full bg-muted" />
-          <div className="w-3 h-3 rounded-full bg-muted" />
         </div>
       </div>
       <div className="h-6 bg-muted rounded w-2/3 mb-3" />
