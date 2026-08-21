@@ -9,12 +9,19 @@ interface WebWindowProps {
   onClose: () => void;
 }
 
+type ResizeDir = "n" | "s" | "e" | "w" | "ne" | "nw" | "se" | "sw";
+
+const MIN_W = 360;
+const MIN_H = 280;
+
 export function WebWindow({ url, repository, onClose }: WebWindowProps) {
   const windowRef = useRef<HTMLElement>(null);
   const [isMinimized, setIsMinimized] = useState(false);
   const [isMaximized, setIsMaximized] = useState(false);
   const [pos, setPos] = useState({ x: 0, y: 0 });
+  const [size, setSize] = useState<{ w: number; h: number } | null>(null);
   const [isDragging, setIsDragging] = useState(false);
+  const [resizingDir, setResizingDir] = useState<ResizeDir | null>(null);
 
   // drag state: start pointer, origin pos, window size
   const dragState = useRef({
@@ -26,12 +33,25 @@ export function WebWindow({ url, repository, onClose }: WebWindowProps) {
     h: 0,
   });
 
+  const resizeState = useRef({
+    dir: "se" as ResizeDir,
+    startX: 0,
+    startY: 0,
+    startW: 0,
+    startH: 0,
+    startLeft: 0,
+    startTop: 0,
+    startPosX: 0,
+    startPosY: 0,
+  });
+
   // Reset position/min/max when a new preview opens
   useEffect(() => {
     if (url || repository) {
       setIsMinimized(false);
       setIsMaximized(false);
       setPos({ x: 0, y: 0 });
+      setSize(null);
     }
   }, [url, repository]);
 
@@ -95,9 +115,100 @@ export function WebWindow({ url, repository, onClose }: WebWindowProps) {
     };
   }, [isDragging]);
 
+  // Pointer move/up while resizing
+  useEffect(() => {
+    if (!resizingDir) return;
+
+    const onPointerMove = (event: PointerEvent) => {
+      const dx = event.clientX - resizeState.current.startX;
+      const dy = event.clientY - resizeState.current.startY;
+      const vw = window.innerWidth;
+      const vh = window.innerHeight;
+      const dir = resizeState.current.dir;
+      const startW = resizeState.current.startW;
+      const startH = resizeState.current.startH;
+      const startLeft = resizeState.current.startLeft;
+      const startTop = resizeState.current.startTop;
+
+      let newW = startW;
+      let newH = startH;
+      let newLeft = startLeft;
+      let newTop = startTop;
+
+      if (dir.includes("e")) newW = startW + dx;
+      if (dir.includes("w")) {
+        newW = startW - dx;
+        newLeft = startLeft + dx;
+      }
+      if (dir.includes("s")) newH = startH + dy;
+      if (dir.includes("n")) {
+        newH = startH - dy;
+        newTop = startTop + dy;
+      }
+
+      // Clamp size
+      const maxW = vw - 32;
+      const maxH = vh - 32;
+      let clampedW = Math.min(Math.max(newW, MIN_W), maxW);
+      let clampedH = Math.min(Math.max(newH, MIN_H), maxH);
+
+      // If clamped, adjust left/top for w/n dirs to keep opposite edge fixed
+      if (dir.includes("w") && clampedW !== newW) {
+        newLeft = startLeft + (startW - clampedW);
+      }
+      if (dir.includes("n") && clampedH !== newH) {
+        newTop = startTop + (startH - clampedH);
+      }
+      newW = clampedW;
+      newH = clampedH;
+
+      // Keep at least 80px visible (prevent dragging completely off-screen via resize)
+      // Clamp left/top so right/bottom stays visible
+      const minLeft = -newW + 80;
+      const maxLeft = vw - 80;
+      const minTop = 0;
+      const maxTop = vh - 80;
+      if (newLeft < minLeft) {
+        // shrink width if left would go too far
+        const overflow = minLeft - newLeft;
+        if (dir.includes("w")) {
+          newLeft = minLeft;
+          newW = Math.max(MIN_W, newW - overflow);
+        } else {
+          newLeft = minLeft;
+        }
+      }
+      if (newLeft > maxLeft) newLeft = maxLeft;
+      if (newTop < minTop) {
+        const overflow = minTop - newTop;
+        if (dir.includes("n")) {
+          newTop = minTop;
+          newH = Math.max(MIN_H, newH - overflow);
+        } else newTop = minTop;
+      }
+      if (newTop > maxTop) newTop = maxTop;
+
+      // Convert back to pos offset (translate from center)
+      const newPosX = newLeft - (vw - newW) / 2;
+      const newPosY = newTop - (vh - newH) / 2;
+
+      setSize({ w: newW, h: newH });
+      setPos({ x: newPosX, y: newPosY });
+    };
+
+    const onPointerUp = () => setResizingDir(null);
+
+    window.addEventListener("pointermove", onPointerMove);
+    window.addEventListener("pointerup", onPointerUp);
+    return () => {
+      window.removeEventListener("pointermove", onPointerMove);
+      window.removeEventListener("pointerup", onPointerUp);
+    };
+  }, [resizingDir]);
+
   const onToolbarPointerDown = useCallback(
     (event: React.PointerEvent) => {
-      if (isMaximized) return;
+      if (isMaximized || resizingDir) return;
       // Don't start drag when clicking controls/links
       const target = event.target as HTMLElement;
       if (target.closest("button, a")) return;
@@ -117,6 +228,30 @@ export function WebWindow({ url, repository, onClose }: WebWindowProps) {
       // Capture to ensure move events even if leaving toolbar
       (event.currentTarget as HTMLElement).setPointerCapture?.(event.pointerId);
       event.preventDefault();
+    },
+    [isMaximized, resizingDir, pos.x, pos.y]
+  );
+
+  const onResizePointerDown = useCallback(
+    (dir: ResizeDir) => (event: React.PointerEvent) => {
+      if (isMaximized) return;
+      event.preventDefault();
+      event.stopPropagation();
+      const rect = windowRef.current?.getBoundingClientRect();
+      if (!rect) return;
+      resizeState.current = {
+        dir,
+        startX: event.clientX,
+        startY: event.clientY,
+        startW: rect.width,
+        startH: rect.height,
+        startLeft: rect.left,
+        startTop: rect.top,
+        startPosX: pos.x,
+        startPosY: pos.y,
+      };
+      setResizingDir(dir);
+      (event.currentTarget as HTMLElement).setPointerCapture?.(event.pointerId);
     },
     [isMaximized, pos.x, pos.y]
   );
@@ -169,16 +304,19 @@ export function WebWindow({ url, repository, onClose }: WebWindowProps) {
             ? "web-window web-window-maximized"
             : isDragging
               ? "web-window web-window-dragging"
-              : "web-window"
+              : resizingDir
+                ? `web-window web-window-resizing web-window-resizing-${resizingDir}`
+                : "web-window"
         }
         onClick={(event) => event.stopPropagation()}
         role="dialog"
         style={
           isMaximized
             ? undefined
-            : pos.x !== 0 || pos.y !== 0
-              ? { transform: `translate(${pos.x}px, ${pos.y}px)` }
-              : undefined
+            : {
+                ...(pos.x !== 0 || pos.y !== 0 ? { transform: `translate(${pos.x}px, ${pos.y}px)` } : {}),
+                ...(size ? { width: size.w, height: size.h } : {}),
+              }
         }
       >
         <header
@@ -240,6 +378,20 @@ export function WebWindow({ url, repository, onClose }: WebWindowProps) {
             <iframe className="web-window-frame" src={url!} title={hostname} />
           )}
         </div>
+
+        {/* Resize handles - hidden when maximized */}
+        {!isMaximized && (
+          <>
+            <span className="web-window-resize-handle web-window-resize-n" onPointerDown={onResizePointerDown("n")} aria-hidden />
+            <span className="web-window-resize-handle web-window-resize-s" onPointerDown={onResizePointerDown("s")} aria-hidden />
+            <span className="web-window-resize-handle web-window-resize-e" onPointerDown={onResizePointerDown("e")} aria-hidden />
+            <span className="web-window-resize-handle web-window-resize-w" onPointerDown={onResizePointerDown("w")} aria-hidden />
+            <span className="web-window-resize-handle web-window-resize-ne" onPointerDown={onResizePointerDown("ne")} aria-hidden />
+            <span className="web-window-resize-handle web-window-resize-nw" onPointerDown={onResizePointerDown("nw")} aria-hidden />
+            <span className="web-window-resize-handle web-window-resize-se" onPointerDown={onResizePointerDown("se")} aria-hidden />
+            <span className="web-window-resize-handle web-window-resize-sw" onPointerDown={onResizePointerDown("sw")} aria-hidden />
+          </>
+        )}
       </section>
     </div>
   );
