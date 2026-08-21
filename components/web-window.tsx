@@ -15,6 +15,7 @@ interface WebWindowProps {
   minimized?: boolean;
   onMinimize?: (id: string) => void;
   onRestore?: (id: string) => void;
+  initialOffset?: { x: number; y: number };
 }
 
 type ResizeDir = "n" | "s" | "e" | "w" | "ne" | "nw" | "se" | "sw";
@@ -34,6 +35,7 @@ export function WebWindow({
   minimized,
   onMinimize,
   onRestore,
+  initialOffset,
 }: WebWindowProps) {
   const windowRef = useRef<HTMLElement>(null);
   const [internalMinimized, setInternalMinimized] = useState(false);
@@ -81,13 +83,13 @@ export function WebWindow({
     }
   }, [id]);
 
-  // Reset when id changes
+  // Reset when id changes - use staggered initial offset for new windows
   useEffect(() => {
     setIsMinimized(false);
     setIsMaximized(false);
-    setPos({ x: 0, y: 0 });
+    setPos(initialOffset ? { x: initialOffset.x, y: initialOffset.y } : { x: 0, y: 0 });
     setSize(null);
-  }, [id]);
+  }, [id, initialOffset]);
 
   useEffect(() => {
     const hasWindow = Boolean(url || repository);

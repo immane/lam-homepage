@@ -122,6 +122,7 @@ type WindowEntry = {
   repository: { owner: string; name: string } | null;
   z: number;
   minimized: boolean;
+  initialOffset: { x: number; y: number };
 };
 
 export default function HomePage() {
@@ -180,7 +181,9 @@ export default function HomePage() {
       return;
     }
     const id = `win-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`;
-    setWindows((ws) => [...ws, { id, url, repository, z: nextZ, minimized: false }]);
+    const stagger = windows.length % 6;
+    const initialOffset = { x: stagger * 32, y: stagger * 28 };
+    setWindows((ws) => [...ws, { id, url, repository, z: nextZ, minimized: false, initialOffset }]);
     setActiveId(id);
     setNextZ((z) => z + 1);
   };
@@ -588,6 +591,7 @@ export default function HomePage() {
             minimized={w.minimized}
             onMinimize={minimizeWindow}
             onRestore={restoreWindow}
+            initialOffset={w.initialOffset}
           />
         );
       })}
