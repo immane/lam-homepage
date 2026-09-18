@@ -9,8 +9,9 @@ interface ProjectCardProps {
   language: string;
   stars: number;
   url: string;
+  homepage?: string | null;
   isPinned?: boolean;
-  onOpenPreview?: (url: string) => void;
+  onOpenPreview?: (url: string, homepage?: string | null) => void;
 }
 
 const languageColors: Record<string, string> = {
@@ -29,6 +30,7 @@ export function ProjectCard({
   language,
   stars,
   url,
+  homepage,
   isPinned = false,
   onOpenPreview,
 }: ProjectCardProps) {
@@ -46,7 +48,7 @@ export function ProjectCard({
       )}
       onMouseEnter={() => setIsHovered(true)}
       onMouseLeave={() => setIsHovered(false)}
-      onClick={() => onOpenPreview?.(url)}
+      onClick={() => onOpenPreview?.(url, homepage)}
     >
       {/* Scan line effect on hover */}
       {isHovered && (

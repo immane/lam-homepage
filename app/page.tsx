@@ -29,6 +29,7 @@ interface GitHubData {
     language: string | null;
     stars: number;
     url: string;
+    homepage: string | null;
     topics: string[];
     isPinned: boolean;
   }>;
@@ -118,6 +119,7 @@ type WindowEntry = {
   id: string;
   url: string;
   repository: { owner: string; name: string } | null;
+  homepage: string | null;
   z: number;
   minimized: boolean;
   initialOffset: { x: number; y: number };
@@ -166,10 +168,24 @@ export default function HomePage() {
   const pinnedRepos = repos.filter((repo) => repo.isPinned);
   const otherRepos = repos.filter((repo) => !repo.isPinned);
 
-  const openPreview = (url: string) => {
-    const parsedUrl = new URL(url);
-    const [owner, name] = parsedUrl.pathname.split("/").filter(Boolean);
-    const repository = parsedUrl.hostname === "github.com" && owner && name ? { owner, name } : null;
+  const normalizeHomepage = (value?: string | null) => {
+    if (!value) return null;
+    const trimmed = value.trim();
+    if (!trimmed) return null;
+    if (/^https?:\/\//i.test(trimmed)) return trimmed;
+    return `https://${trimmed}`;
+  };
+
+  const openPreview = (url: string, homepage?: string | null) => {
+    let repository: { owner: string; name: string } | null = null;
+    try {
+      const parsedUrl = new URL(normalizeHomepage(url) || url);
+      const [owner, name] = parsedUrl.pathname.split("/").filter(Boolean);
+      repository = parsedUrl.hostname === "github.com" && owner && name ? { owner, name } : null;
+    } catch {
+      repository = null;
+    }
+    const normalizedHomepage = repository ? normalizeHomepage(homepage) : null;
     // If same url already open, focus it instead of duplicating
     const existing = windows.find((w) => w.url === url);
     if (existing) {
@@ -181,7 +197,7 @@ export default function HomePage() {
     const id = `win-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`;
     const stagger = windows.length % 6;
     const initialOffset = { x: stagger * 32, y: stagger * 28 };
-    setWindows((ws) => [...ws, { id, url, repository, z: nextZ, minimized: false, initialOffset }]);
+    setWindows((ws) => [...ws, { id, url, repository, homepage: normalizedHomepage, z: nextZ, minimized: false, initialOffset }]);
     setActiveId(id);
     setNextZ((z) => z + 1);
   };
@@ -397,6 +413,7 @@ export default function HomePage() {
                           language={project.language || "Unknown"}
                           stars={project.stars}
                           url={project.url}
+                          homepage={project.homepage}
                           isPinned={project.isPinned}
                           onOpenPreview={openPreview}
                         />
@@ -454,6 +471,7 @@ export default function HomePage() {
                         language={project.language || "Unknown"}
                         stars={project.stars}
                           url={project.url}
+                          homepage={project.homepage}
                           onOpenPreview={openPreview}
                       />
                     </div>
@@ -581,10 +599,12 @@ export default function HomePage() {
             id={w.id}
             url={w.url}
             repository={w.repository}
+            homepage={w.homepage}
             active={activeId === w.id}
             zIndex={w.z}
             onClose={closeWindow}
             onFocus={focusWindow}
+            onOpenUrl={openPreview}
             dockIndex={w.minimized ? minimizedIdx : undefined}
             minimized={w.minimized}
             onMinimize={minimizeWindow}

@@ -8,6 +8,7 @@ export interface GitHubRepo {
   language: string | null;
   stargazers_count: number;
   html_url: string;
+  homepage: string | null;
   fork: boolean;
   updated_at: string;
   topics: string[];
@@ -272,6 +273,7 @@ export async function GET() {
         language: repo.language,
         stars: repo.stargazers_count,
         url: repo.html_url,
+        homepage: repo.homepage || null,
         topics: repo.topics,
         isPinned: pinnedSet.has(repo.name),
       })),

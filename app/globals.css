@@ -374,7 +374,8 @@ html {
 
 .web-window-address span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .web-window-prompt { color: var(--primary); }
-.web-window-external-link { display: grid; width: 22px; height: 22px; justify-self: end; place-items: center; border: 1px solid transparent; border-radius: 4px; color: var(--muted-foreground); transition: all 160ms ease; }
+.web-window-actions { display: flex; align-items: center; gap: 6px; justify-self: end; }
+.web-window-external-link { display: grid; width: 22px; height: 22px; place-items: center; border: 1px solid transparent; border-radius: 4px; color: var(--muted-foreground); transition: all 160ms ease; cursor: pointer; background: transparent; padding: 0; }
 .web-window-external-link:hover { border-color: color-mix(in oklch, var(--primary) 35%, transparent); background: color-mix(in oklch, var(--primary) 12%, transparent); color: var(--matrix-green-bright); }
 .web-window-external-link svg { width: 13px; height: 13px; }
 
