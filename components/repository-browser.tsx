@@ -95,7 +95,22 @@ export const RepositoryBrowser = memo(function RepositoryBrowser({ owner, reposi
   }, []);
 
   const currentPath = directory?.path || "";
-  const parentPath = useMemo(() => currentPath.split("/").slice(0, -1).join("/"), [currentPath]);
+  const pathListRef = useRef<HTMLOListElement>(null);
+  const pathSegments = useMemo(() => {
+    const segments = currentPath.split("/").filter(Boolean);
+    return segments.map((name, index) => ({
+      name,
+      path: segments.slice(0, index + 1).join("/"),
+      current: index === segments.length - 1,
+    }));
+  }, [currentPath]);
+
+  // Breadcrumb is single-line with hidden horizontal scroll: keep the
+  // current (last) segment visible after navigation.
+  useEffect(() => {
+    const list = pathListRef.current;
+    if (list) list.scrollLeft = list.scrollWidth;
+  }, [currentPath]);
   const previewImageUrl = useMemo(() => file && imageFile.test(file.entry.name)
     ? `/api/github/${encodeURIComponent(owner)}/${encodeURIComponent(repository)}/contents?${new URLSearchParams({ path: file.entry.path, raw: "1" })}`
     : null, [file, owner, repository]);
@@ -139,12 +154,27 @@ export const RepositoryBrowser = memo(function RepositoryBrowser({ owner, reposi
             ref={sidebarRef}
           >
             <aside className="repository-files" aria-label="Repository files">
-              <div className="repository-path">
-                <button disabled={!currentPath} onClick={() => void loadDirectory(parentPath)} type="button">
-                  ..
-                </button>
-                <span>{currentPath || "root"}</span>
-              </div>
+              <nav className="repository-path" aria-label="Repository path">
+                {pathSegments.length === 0 ? (
+                  <span aria-current="page" className="repository-path-current">root</span>
+                ) : (
+                  <ol className="repository-path-list" ref={pathListRef}>
+                    <li>
+                      <button onClick={() => void loadDirectory("")} type="button">root</button>
+                    </li>
+                    {pathSegments.map((segment) => (
+                      <li key={segment.path}>
+                        <span aria-hidden="true" className="repository-path-separator">/</span>
+                        {segment.current ? (
+                          <span aria-current="page" className="repository-path-current">{segment.name}</span>
+                        ) : (
+                          <button onClick={() => void loadDirectory(segment.path)} type="button">{segment.name}</button>
+                        )}
+                      </li>
+                    ))}
+                  </ol>
+                )}
+              </nav>
               {loading && <p className="repository-status">Loading files...</p>}
               {error && <p className="repository-status repository-error">{error}</p>}
               {directory?.entries.map((entry) => (
