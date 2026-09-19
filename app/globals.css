@@ -384,6 +384,10 @@ html {
 .web-window-inactive .web-window-minimize,
 .web-window-inactive .web-window-maximize { background: #6f6f6f; box-shadow: 0 0 0 1px rgba(0, 0, 0, 0.3); }
 .web-window-inactive .web-window-controls:hover .web-window-control { color: rgba(0, 0, 0, 0.6); }
+/* Hovering inactive lights brings back full color, macOS-style */
+.web-window-inactive .web-window-controls:hover .web-window-close { background: #ff5f57; box-shadow: 0 0 0 1px rgba(73, 0, 0, 0.22); }
+.web-window-inactive .web-window-controls:hover .web-window-minimize { background: #febc2e; box-shadow: 0 0 0 1px rgba(88, 66, 0, 0.22); }
+.web-window-inactive .web-window-controls:hover .web-window-maximize { background: #28c840; box-shadow: 0 0 0 1px rgba(0, 48, 8, 0.28); }
 
 .web-window-address {
   display: flex;
