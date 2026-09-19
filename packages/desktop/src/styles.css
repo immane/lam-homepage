@@ -1,0 +1,436 @@
+/*
+ * @lam/desktop — window/desktop framework styles.
+ *
+ * Content-agnostic: it styles the window chrome, dock and resize handles only.
+ * The host must define these custom properties (usually in its global theme):
+ *   --primary --card --border --foreground --muted-foreground --background
+ *   --font-mono --radius-lg
+ */
+
+/* Multi-window layer - captures clicks on empty area to deactivate */
+.web-window-layer {
+  position: fixed;
+  inset: 0;
+  z-index: 200;
+  pointer-events: none;
+}
+
+.web-window-layer--has-windows {
+  pointer-events: auto;
+}
+
+.web-window-layer__bg {
+  position: absolute;
+  inset: 0;
+  background: color-mix(in oklch, var(--background) 55%, transparent);
+  animation: web-window-backdrop-in 240ms ease-out both;
+  pointer-events: auto;
+}
+
+.web-window-layer__bg--inactive {
+  background: transparent;
+  animation: none;
+  pointer-events: none;
+}
+
+/* Legacy backdrop kept for single-window compat, now also used as invisible hit area */
+.web-window-backdrop {
+  position: fixed;
+  z-index: 200;
+  inset: 0;
+  display: grid;
+  place-items: center;
+  padding: 1rem;
+  background: color-mix(in oklch, var(--background) 80%, transparent);
+  animation: web-window-backdrop-in 240ms ease-out both;
+}
+
+.web-window {
+  position: fixed;
+  /* vw 而非 %：fixed 的 % 相对 clientWidth（随滚动条显隐变化），vw 恒定，开关锁时窗口不位移 */
+  left: 50vw;
+  top: 50%;
+  display: flex;
+  width: min(80vw, 1440px);
+  height: min(80vh, 960px);
+  flex-direction: column;
+  overflow: hidden;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
+  background: color-mix(in oklch, var(--card) 72%, transparent);
+  box-shadow: 0 32px 100px rgba(0, 0, 0, 0.68), 0 0 46px color-mix(in oklch, var(--primary) 24%, transparent), inset 0 0 48px color-mix(in oklch, var(--primary) 5%, transparent);
+  backdrop-filter: blur(16px);
+  animation: web-window-in 420ms cubic-bezier(0.16, 1, 0.3, 1) both;
+  transform: translate(-50%, -50%);
+  contain: layout paint;
+  will-change: transform;
+}
+
+.web-window.web-window-resizing {
+  user-select: none;
+  transition: none !important;
+  animation: none !important;
+  backdrop-filter: none !important;
+  will-change: width, height, transform;
+}
+
+.web-window.web-window-moved {
+  animation: none !important;
+}
+
+.web-window.web-window-inactive {
+  opacity: 0.78;
+  filter: saturate(0.55) brightness(0.92);
+  box-shadow: 0 16px 48px rgba(0, 0, 0, 0.45), inset 0 0 24px transparent;
+}
+
+.web-window.web-window-inactive .web-window-toolbar {
+  background: var(--card);
+  border-bottom-color: color-mix(in oklch, var(--border) 65%, transparent);
+  backdrop-filter: none;
+  -webkit-backdrop-filter: none;
+}
+
+.web-window.web-window-active {
+  opacity: 1;
+  filter: none;
+}
+
+.web-window-toolbar {
+  display: grid;
+  grid-template-columns: 1fr minmax(0, 2fr) 1fr;
+  align-items: center;
+  min-height: 48px;
+  padding: 0 16px;
+  border-bottom: 1px solid var(--border);
+  background: var(--card);
+  backdrop-filter: none;
+  -webkit-backdrop-filter: none;
+  -webkit-font-smoothing: antialiased;
+  transform: translateZ(0);
+}
+
+.web-window-toolbar-draggable {
+  cursor: grab;
+  touch-action: none;
+  user-select: none;
+}
+
+.web-window-toolbar-draggable:active {
+  cursor: grabbing;
+}
+
+.web-window.web-window-dragging {
+  cursor: grabbing;
+  user-select: none;
+  transition: none !important;
+  animation: none !important;
+  backdrop-filter: none !important;
+  will-change: transform;
+}
+
+/* When window has been dragged, the entrance transform is superseded by inline translate; keep backdrop centered */
+.web-window-maximized {
+  left: 0 !important;
+  top: 0 !important;
+  width: 100vw !important;
+  height: 100vh !important;
+  max-width: none !important;
+  max-height: none !important;
+  border-radius: 0 !important;
+  border: none !important;
+  animation: none !important;
+  transform: none !important;
+}
+
+.web-window-backdrop-maximized {
+  padding: 0;
+  place-items: stretch;
+  background: var(--background);
+}
+
+.web-window-backdrop-maximized .web-window-maximized {
+  box-shadow: none;
+}
+
+.web-window-controls {
+  display: flex;
+  gap: 6px;
+}
+
+.web-window-control {
+  width: 12px;
+  height: 12px;
+  flex: none;
+  display: grid;
+  place-items: center;
+  padding: 0;
+  border: 0;
+  border-radius: 50%;
+  font-size: 10px;
+  font-weight: 700;
+  line-height: 1;
+  color: transparent;
+  transition: color 120ms ease;
+}
+
+/* macOS traffic lights: symbols appear on group hover */
+.web-window-close::after,
+.web-window-minimize::after,
+.web-window-maximize::after { font-weight: bold; -webkit-text-stroke: 0.4px currentColor; }
+.web-window-close::after { content: "×"; }
+.web-window-minimize::after { content: "−"; }
+.web-window-maximize::after { content: "+"; }
+.web-window-controls:hover .web-window-control { color: rgba(0, 0, 0, 0.55); }
+
+.web-window-close {
+  cursor: pointer;
+  background: #ff5f57;
+  box-shadow: 0 0 0 1px rgba(73, 0, 0, 0.22);
+}
+
+.web-window-close:hover {
+  filter: brightness(1.14);
+}
+
+.web-window-minimize { cursor: pointer; background: #febc2e; box-shadow: 0 0 0 1px rgba(88, 66, 0, 0.22); }
+.web-window-minimize:hover { filter: brightness(1.14); }
+.web-window-maximize { cursor: pointer; background: #28c840; box-shadow: 0 0 0 1px rgba(0, 48, 8, 0.28); }
+.web-window-maximize:hover { filter: brightness(1.14); }
+
+/* Inactive windows: traffic lights turn gray (symbols still show on hover) */
+.web-window-inactive .web-window-close,
+.web-window-inactive .web-window-minimize,
+.web-window-inactive .web-window-maximize { background: #6f6f6f; box-shadow: 0 0 0 1px rgba(0, 0, 0, 0.3); }
+.web-window-inactive .web-window-controls:hover .web-window-control { color: rgba(0, 0, 0, 0.6); }
+/* Hovering inactive lights brings back full color, macOS-style */
+.web-window-inactive .web-window-controls:hover .web-window-close { background: #ff5f57; box-shadow: 0 0 0 1px rgba(73, 0, 0, 0.22); }
+.web-window-inactive .web-window-controls:hover .web-window-minimize { background: #febc2e; box-shadow: 0 0 0 1px rgba(88, 66, 0, 0.22); }
+.web-window-inactive .web-window-controls:hover .web-window-maximize { background: #28c840; box-shadow: 0 0 0 1px rgba(0, 48, 8, 0.28); }
+/* Disabled close (non-closable windows): inert gray, glyph never revealed */
+.web-window-control:disabled { cursor: not-allowed; filter: none; }
+.web-window-close:disabled,
+.web-window-inactive .web-window-controls:hover .web-window-close:disabled { background: #6f6f6f; box-shadow: 0 0 0 1px rgba(0, 0, 0, 0.3); }
+.web-window-controls:hover .web-window-close:disabled,
+.web-window-inactive .web-window-controls:hover .web-window-close:disabled { color: transparent; }
+.web-window-minimized-close:disabled { cursor: not-allowed; opacity: 0.35; }
+
+.web-window-address {
+  display: flex;
+  min-width: 0;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  color: var(--muted-foreground);
+  font-family: var(--font-mono);
+  font-size: 11px;
+}
+
+.web-window-address span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.web-window-prompt { color: var(--primary); }
+.web-window-actions { display: flex; align-items: center; gap: 6px; justify-self: end; }
+.web-window-external-link { display: grid; width: 22px; height: 22px; place-items: center; border: 1px solid transparent; border-radius: 4px; color: var(--muted-foreground); transition: all 160ms ease; cursor: pointer; background: transparent; padding: 0; }
+.web-window-external-link:hover { border-color: color-mix(in oklch, var(--primary) 35%, transparent); background: color-mix(in oklch, var(--primary) 12%, transparent); color: var(--primary); }
+.web-window-external-link svg { width: 13px; height: 13px; }
+
+.web-window-content { position: relative; min-height: 0; flex: 1; background: color-mix(in oklch, var(--background) 78%, var(--card)); }
+.web-window-inactive-overlay {
+  position: absolute;
+  inset: 0;
+  z-index: 2;
+  background: transparent;
+  border: 0;
+  cursor: pointer;
+}
+.web-window-frame { display: block; width: 100%; height: 100%; border: 0; }
+
+@keyframes web-window-backdrop-in {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+
+@keyframes web-window-in {
+  from { opacity: 0; transform: translate(-50%, -50%) perspective(1200px) translateY(36px) scale(0.94) rotateX(-3deg); }
+  to { opacity: 1; transform: translate(-50%, -50%) perspective(1200px) translateY(0) scale(1) rotateX(0); }
+}
+
+/* Dock container for multiple minimized windows */
+.web-window-dock {
+  position: fixed;
+  z-index: 220;
+  right: 16px;
+  bottom: 16px;
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  gap: 8px;
+  pointer-events: none;
+}
+
+.web-window-dock:empty { display: none; }
+
+/* Minimized dock / taskbar - single window legacy, now also used inside dock */
+.web-window-minimized-dock {
+  position: fixed;
+  z-index: 210;
+  right: 16px;
+  bottom: 16px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  animation: web-window-minimized-in 220ms cubic-bezier(0.16, 1, 0.3, 1) both;
+  pointer-events: auto;
+}
+
+.web-window-dock .web-window-minimized-dock {
+  position: relative;
+  left: auto;
+  bottom: auto;
+  z-index: auto;
+}
+
+.web-window-minimized-bar {
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+  min-width: 220px;
+  max-width: min(92vw, 380px);
+  padding: 10px 14px;
+  border: 1px solid color-mix(in oklch, var(--primary) 38%, transparent);
+  border-radius: var(--radius-lg);
+  background: color-mix(in oklch, var(--card) 88%, transparent);
+  color: var(--foreground);
+  font-family: var(--font-mono);
+  font-size: 12px;
+  box-shadow: 0 18px 48px rgba(0, 0, 0, 0.55), 0 0 24px color-mix(in oklch, var(--primary) 18%, transparent);
+  backdrop-filter: blur(14px);
+  cursor: pointer;
+  transition: border-color 160ms ease, transform 160ms ease, box-shadow 160ms ease;
+}
+
+.web-window-minimized-bar:hover {
+  border-color: var(--primary);
+  transform: translateY(-1px);
+  box-shadow: 0 22px 56px rgba(0, 0, 0, 0.6), 0 0 30px color-mix(in oklch, var(--primary) 28%, transparent);
+}
+
+.web-window-minimized-dot {
+  width: 8px;
+  height: 8px;
+  flex: none;
+  border-radius: 50%;
+  background: #febc2e;
+  box-shadow: 0 0 8px color-mix(in oklch, #febc2e 55%, transparent);
+}
+
+.web-window-minimized-icon {
+  width: 16px;
+  height: 16px;
+  flex: none;
+  color: var(--primary);
+}
+
+.web-window-minimized-title {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  color: var(--muted-foreground);
+}
+
+.web-window-minimized-close {
+  display: grid;
+  width: 36px;
+  height: 36px;
+  place-items: center;
+  border: 1px solid color-mix(in oklch, var(--primary) 22%, transparent);
+  border-radius: 50%;
+  background: color-mix(in oklch, var(--card) 88%, transparent);
+  color: var(--muted-foreground);
+  font-size: 18px;
+  line-height: 1;
+  cursor: pointer;
+  backdrop-filter: blur(14px);
+  transition: all 160ms ease;
+}
+
+.web-window-minimized-close:hover {
+  border-color: #ff5f57;
+  background: color-mix(in oklch, #ff5f57 16%, var(--card));
+  color: #ff5f57;
+}
+
+@keyframes web-window-minimized-in {
+  from { opacity: 0; transform: translateY(12px) scale(0.96); }
+  to { opacity: 1; transform: translateY(0) scale(1); }
+}
+
+/* Resize handles */
+.web-window-resize-handle {
+  position: absolute;
+  z-index: 5;
+  touch-action: none;
+  /* invisible hit area, visible on hover via accent glow */
+  background: transparent;
+  transition: background 120ms ease;
+}
+
+.web-window-resize-handle:hover {
+  background: color-mix(in oklch, var(--primary) 22%, transparent);
+}
+
+.web-window-resize-n { top: 0; left: 8px; right: 8px; height: 6px; cursor: ns-resize; }
+.web-window-resize-s { bottom: 0; left: 8px; right: 8px; height: 8px; cursor: ns-resize; }
+.web-window-resize-e { top: 8px; right: 0; bottom: 8px; width: 8px; cursor: ew-resize; }
+.web-window-resize-w { top: 8px; left: 0; bottom: 8px; width: 6px; cursor: ew-resize; }
+.web-window-resize-ne { top: 0; right: 0; width: 14px; height: 14px; cursor: nesw-resize; }
+.web-window-resize-nw { top: 0; left: 0; width: 14px; height: 14px; cursor: nwse-resize; }
+.web-window-resize-se { bottom: 0; right: 0; width: 18px; height: 18px; cursor: nwse-resize; }
+.web-window-resize-sw { bottom: 0; left: 0; width: 14px; height: 14px; cursor: nesw-resize; }
+
+/* Corner handles show subtle matrix corner */
+.web-window-resize-se::after {
+  content: "";
+  position: absolute;
+  right: 4px;
+  bottom: 4px;
+  width: 10px;
+  height: 10px;
+  border-right: 2px solid color-mix(in oklch, var(--primary) 55%, transparent);
+  border-bottom: 2px solid color-mix(in oklch, var(--primary) 55%, transparent);
+  border-radius: 0 0 2px 0;
+  opacity: 0.9;
+}
+
+.web-window-resize-se:hover::after {
+  border-color: var(--primary);
+  box-shadow: 0 0 8px color-mix(in oklch, var(--primary) 30%, transparent);
+}
+
+@media (max-width: 640px) {
+  .web-window {
+    width: 92vw;
+    height: 80vh;
+    background: var(--card);
+    backdrop-filter: none;
+    -webkit-backdrop-filter: none;
+    box-shadow: 0 16px 48px rgba(0, 0, 0, 0.55), 0 0 20px color-mix(in oklch, var(--primary) 18%, transparent);
+    -webkit-font-smoothing: antialiased;
+    transform: translate(-50%, -50%);
+    animation: none !important;
+  }
+  .web-window.web-window-active {
+    background: var(--card);
+    backdrop-filter: none;
+    -webkit-backdrop-filter: none;
+  }
+  .web-window-toolbar { grid-template-columns: 1fr minmax(0, 3fr) 1fr; padding: 0 12px; }
+  .web-window-minimized-dock { left: auto; right: 8px; bottom: 8px; }
+  .web-window-minimized-bar { min-width: 0; flex: 1; }
+  /* larger hit area for touch resize */
+  .web-window-resize-n, .web-window-resize-s { height: 12px; }
+  .web-window-resize-e, .web-window-resize-w { width: 12px; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .web-window-backdrop, .web-window { animation: none; }
+}
