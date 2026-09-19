@@ -79,6 +79,11 @@ export interface SimOptions {
   boot?: SimBootConfig;
   /** Attach an emulated NIC; omit for a guest with no networking. */
   network?: SimNetwork;
+  /**
+   * Attach an empty 9p filesystem that the host can push files into with
+   * `emulator.create_file()` (the guest mounts it at /mnt).
+   */
+  filesystem?: boolean;
   /** Guest RAM in bytes. */
   memorySize?: number;
   /** VGA memory in bytes. */
@@ -184,6 +189,9 @@ export async function createSimVm(mount: SimMount = {}, options: SimOptions = {}
       type: options.network.type ?? "ne2k",
       relay_url: options.network.relayUrl,
     };
+  }
+  if (options.filesystem) {
+    v86Options.filesystem = {};
   }
 
   if (boot.mode === "cdrom") {

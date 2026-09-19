@@ -1,0 +1,62 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>served from inside Linux</title>
+<style>
+  :root { color-scheme: dark; }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0;
+    min-height: 100vh;
+    display: grid;
+    place-items: center;
+    background: #050805;
+    color: #7dffa0;
+    font: 14px/1.6 ui-monospace, SFMono-Regular, Menlo, monospace;
+    padding: 24px;
+  }
+  .card {
+    width: min(680px, 100%);
+    border: 1px solid #1c3a25;
+    border-radius: 10px;
+    background: #000;
+    padding: 24px 26px;
+    box-shadow: 0 0 40px rgba(0, 255, 65, 0.12);
+  }
+  h1 { margin: 0 0 4px; font-size: 20px; color: #39d353; letter-spacing: 0.04em; }
+  .sub { margin: 0 0 18px; color: #4e9c63; font-size: 12px; }
+  dl { display: grid; grid-template-columns: auto 1fr; gap: 4px 16px; margin: 0 0 18px; }
+  dt { color: #4e9c63; }
+  dd { margin: 0; color: #c8ffd4; }
+  .blink::after { content: "▋"; animation: blink 1s steps(1) infinite; }
+  @keyframes blink { 50% { opacity: 0; } }
+  pre { margin: 0; padding: 12px; border: 1px solid #16301f; border-radius: 6px; background: #030603; color: #9dffb8; overflow: auto; font-size: 12px; }
+</style>
+</head>
+<body>
+  <div class="card">
+    <h1>hello from inside the guest Linux</h1>
+    <p class="sub">this page is served by busybox httpd running in the emulated machine</p>
+    <dl>
+      <dt>served by</dt><dd id="server">busybox httpd</dd>
+      <dt>guest time</dt><dd id="time">—</dd>
+      <dt>your browser</dt><dd id="ua">—</dd>
+    </dl>
+    <pre id="log">waiting for a request…</pre>
+    <p class="blink" id="status">ready</p>
+  </div>
+  <script>
+    document.getElementById("ua").textContent = navigator.userAgent;
+    document.getElementById("time").textContent = new Date().toString();
+    document.getElementById("log").textContent =
+      "GET / HTTP/1.0\n" +
+      "host: guest (192.168.86.100)\n" +
+      "-> 200 OK (busybox httpd)";
+    setInterval(function () {
+      document.getElementById("time").textContent = new Date().toString();
+    }, 1000);
+  </script>
+</body>
+</html>

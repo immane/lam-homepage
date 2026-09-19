@@ -2,6 +2,7 @@
 
 import { useEffect, useRef, useState } from "react";
 import { createSimVm, type SimVm } from "@lam/sim-vm";
+import { probeGuest, registerGuestProxy } from "@/lib/guest-proxy";
 
 export type SimStatus = "loading" | "booting" | "running" | "error";
 
@@ -29,6 +30,10 @@ let detail: string | undefined;
 /** Called once when the guest reaches an interactive shell prompt. */
 let readyCallback: (() => void) | null = null;
 let announcedReady = false;
+/** Called once the guest is serving HTTP on port 80. */
+let servedCallback: (() => void) | null = null;
+let announcedServed = false;
+let emulatorRef: SimVm["emulator"] | null = null;
 const listeners = new Set<Listener>();
 
 function emit(next: SimStatus, nextDetail?: string) {
@@ -89,6 +94,65 @@ function newVgaLines(previous: string[], current: string[]): string[] {
   return current.slice(overlap);
 }
 
+/**
+ * Push the static HTTP server and the single-file site into the guest (9p
+ * share), then start serving on port 80. The stock image ships no httpd, so
+ * we hand it a static i686 busybox.
+ */
+async function provisionGuest(
+  emulator: SimVm["emulator"],
+  write: (text: string) => void,
+): Promise<void> {
+  try {
+    const [busybox, site] = await Promise.all([
+      fetch("/sim/busybox-i686").then((res) => {
+        if (!res.ok) throw new Error(`busybox fetch ${res.status}`);
+        return res.arrayBuffer();
+      }),
+      fetch("/guest-site.html").then((res) => {
+        if (!res.ok) throw new Error(`site fetch ${res.status}`);
+        return res.text();
+      }),
+    ]);
+
+    await emulator.create_file("/busybox", new Uint8Array(busybox));
+    await emulator.create_file("/index.html", new TextEncoder().encode(site));
+    write(`\r\n[host] pushed busybox (${Math.round(busybox.byteLength / 1024)} KiB) + index.html to the 9p share\r\n`);
+
+    emulator.serial0_send(
+      [
+        "mkdir -p /www /mnt /opt",
+        "mount -t 9p -o trans=virtio,version=9p2000.L host9p /mnt 2>/dev/null || mount -t 9p host9p /mnt 2>/dev/null",
+        // busybox only treats argv[1] as the applet when it is invoked as
+        // "busybox", so it must be installed under that exact name.
+        "cp /mnt/busybox /opt/busybox && chmod +x /opt/busybox",
+        "cp /mnt/index.html /www/index.html",
+        "ifconfig eth0 up",
+        "udhcpc -i eth0 -n -q -t 8 >/dev/null 2>&1",
+        "/opt/busybox httpd -h /www -p 80",
+        "echo '[guest] httpd listening on :80'",
+        "",
+      ].join("\n"),
+    );
+
+    // Wait until the guest actually accepts connections, then hand control to
+    // the window that shows the guest-served page.
+    const deadline = Date.now() + 30000;
+    while (Date.now() < deadline) {
+      if (await probeGuest(emulator as never)) {
+        write("[host] guest httpd is reachable on :80\r\n");
+        announcedServed = true;
+        servedCallback?.();
+        return;
+      }
+      await new Promise((resolve) => setTimeout(resolve, 1000));
+    }
+    write("[host] guest httpd did not become reachable\r\n");
+  } catch (cause) {
+    write(`\r\n[host] provisioning failed: ${cause instanceof Error ? cause.message : String(cause)}\r\n`);
+  }
+}
+
 async function ensureBoot(): Promise<SimVm> {
   if (boot) return boot;
 
@@ -108,8 +172,11 @@ async function ensureBoot(): Promise<SimVm> {
         cmdline: "console=ttyS0,115200 console=tty0 loglevel=7 tsc=reliable mitigations=off random.trust_cpu=on",
       },
       network: { type: "virtio", relayUrl: "fetch" },
+      filesystem: true,
     });
     const emulator = vm.emulator;
+    emulatorRef = emulator;
+    registerGuestProxy(() => emulatorRef as never);
 
     // Debug/proxy hook: exposes v86's networking (tcp_probe/connect) to the
     // host page and devtools — the basis for a guest-service proxy.
@@ -122,6 +189,11 @@ async function ensureBoot(): Promise<SimVm> {
     // to load.
     let terminalWrite: ((text: string) => void) | null = null;
     const buffered: number[] = [];
+    const pendingText: string[] = [];
+    const writeOut = (text: string) => {
+      if (terminalWrite) terminalWrite(text);
+      else pendingText.push(text);
+    };
     let tail = "";
     let loggedIn = false;
     let mirror: ReturnType<typeof setInterval> | null = null;
@@ -152,6 +224,7 @@ async function ensureBoot(): Promise<SimVm> {
           mirror = null;
         }
         readyCallback?.();
+        void provisionGuest(emulator, writeOut);
       }
     });
 
@@ -207,6 +280,10 @@ async function ensureBoot(): Promise<SimVm> {
       buffered.length = 0;
     }
     terminalWrite = (text) => terminal.write(text);
+    if (pendingText.length > 0) {
+      terminal.write(pendingText.join(""));
+      pendingText.length = 0;
+    }
 
     // Stream the VGA console (where the kernel logs) into the terminal, line
     // by line, until the interactive shell on serial is ready.
@@ -233,13 +310,17 @@ async function ensureBoot(): Promise<SimVm> {
   return boot;
 }
 
-export function SimView({ onReady }: { onReady?: () => void } = {}) {
+export function SimView({
+  onReady,
+  onServed,
+}: { onReady?: () => void; onServed?: () => void } = {}) {
   const slot = useRef<HTMLDivElement>(null);
   const [current, setCurrent] = useState<SimStatus>(status);
   const [currentDetail, setCurrentDetail] = useState<string | undefined>(detail);
 
   useEffect(() => {
     readyCallback = onReady ?? null;
+    servedCallback = onServed ?? null;
     const listener: Listener = (next, nextDetail) => {
       setCurrent(next);
       setCurrentDetail(nextDetail);
@@ -257,7 +338,10 @@ export function SimView({ onReady }: { onReady?: () => void } = {}) {
     return () => {
       cancelAnimationFrame(raf);
       listeners.delete(listener);
-      if (readyCallback === onReady) readyCallback = null;
+      // Callbacks are intentionally NOT cleared here: the window minimizes (and
+      // unmounts this view) as soon as the shell is ready, while boot-time work
+      // such as guest provisioning is still running and must be able to report
+      // back to the page.
       // Detach (keep alive) so minimize/restore does not reboot the guest.
       if (host && host.parentElement === node) host.remove();
     };

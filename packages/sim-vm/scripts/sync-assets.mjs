@@ -50,6 +50,15 @@ const DERIVED_FILES = {
   "root.bin": "ROOT.BIN",
 };
 
+/**
+ * The stock image has no httpd, so the guest is handed a static i686 busybox.
+ * Debian's `busybox-static` is a full multi-call binary (httpd included) and
+ * statically linked, which is what a bare Buildroot rootfs needs.
+ */
+const BUSYBOX_DEB_URL =
+  "https://deb.debian.org/debian/pool/main/b/busybox/busybox-static_1.38.0-3+b1_i386.deb";
+const BUSYBOX_MEMBER = "usr/bin/busybox";
+
 async function exists(p) {
   try {
     await access(p);
@@ -68,7 +77,7 @@ async function download(url, dest) {
   if (size < 1024) throw new Error(`suspiciously small download: ${dest} (${size} bytes)`);
 }
 
-/** Extract specific members from an ISO using whatever tool is available. */
+/** Extract specific members from an archive (ISO, .deb, tar) with bsdtar or 7z. */
 async function extractFromIso(isoPath, members, outDir) {
   const attempts = [
     { bin: "bsdtar", args: ["-xf", isoPath, "-C", outDir, ...members] },
@@ -84,8 +93,48 @@ async function extractFromIso(isoPath, members, outDir) {
     }
   }
   throw new Error(
-    "need `bsdtar` (libarchive) or `7z` to unpack the Linux ISO; install one and re-run",
+    "need `bsdtar` (libarchive) or `7z` to unpack downloaded images; install one and re-run",
   );
+}
+
+/** Unpack a nested archive (e.g. data.tar.xz inside a .deb). */
+async function extractTree(archivePath, outDir, member) {
+  const attempts = [
+    { bin: "bsdtar", args: ["-xf", archivePath, "-C", outDir, ...(member ? [member] : [])] },
+    { bin: "7z", args: ["x", "-y", `-o${outDir}`, archivePath, ...(member ? [member] : [])] },
+  ];
+  for (const attempt of attempts) {
+    try {
+      await execFileAsync(attempt.bin, attempt.args);
+      return;
+    } catch (error) {
+      if (error && error.code === "ENOENT") continue;
+      throw error;
+    }
+  }
+  throw new Error("need `bsdtar` or `7z` to unpack the busybox package");
+}
+
+/** Download Debian's static i386 busybox (the guest's httpd). */
+async function ensureBusybox() {
+  const dest = path.join(targetDir, "busybox-i686");
+  if (await exists(dest)) {
+    console.log("  exists   busybox-i686");
+    return;
+  }
+
+  const work = path.join(os.tmpdir(), `lam-busybox-${Date.now()}`);
+  await mkdir(work, { recursive: true });
+  try {
+    const deb = path.join(work, "busybox.deb");
+    await download(BUSYBOX_DEB_URL, deb);
+    await extractTree(deb, work, "data.tar.xz");
+    await extractTree(path.join(work, "data.tar.xz"), work, `./${BUSYBOX_MEMBER}`);
+    await copyFile(path.join(work, BUSYBOX_MEMBER), dest);
+    console.log(`  extract  ${BUSYBOX_MEMBER} -> busybox-i686`);
+  } finally {
+    await rm(work, { recursive: true, force: true });
+  }
 }
 
 /** Locate an extracted member regardless of the tool's directory layout. */
@@ -142,6 +191,8 @@ async function main() {
   } else {
     console.log("  exists   bzImage, root.bin");
   }
+
+  await ensureBusybox();
 
   console.log("done.");
 }

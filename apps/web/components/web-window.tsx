@@ -6,7 +6,7 @@ import { SimView } from "@/components/sim-view";
 
 interface WebWindowProps {
   id?: string;
-  kind?: "repo" | "url" | "sim";
+  kind?: "repo" | "url" | "sim" | "guest";
   url: string | null;
   repository?: { owner: string; name: string } | null;
   homepage?: string | null;
@@ -24,6 +24,8 @@ interface WebWindowProps {
   closable?: boolean;
   /** Called once the embedded simulator reaches an interactive shell. */
   onSimReady?: () => void;
+  /** Called once the embedded simulator is serving HTTP to the proxy. */
+  onSimServed?: () => void;
 }
 
 type ResizeDir = "n" | "s" | "e" | "w" | "ne" | "nw" | "se" | "sw";
@@ -49,6 +51,7 @@ function WebWindowInner({
   initialOffset,
   closable = true,
   onSimReady,
+  onSimServed,
 }: WebWindowProps) {
   const windowRef = useRef<HTMLElement>(null);
   const inactiveOverlayRef = useRef<HTMLButtonElement>(null);
@@ -354,14 +357,17 @@ function WebWindowInner({
 
   const handleClose = useCallback(() => onClose(id), [onClose, id]);
 
-  if (!url && !repository && kind !== "sim") return null;
+  if (!url && !repository && kind !== "sim" && kind !== "guest") return null;
 
   const isSim = kind === "sim";
+  const isGuest = kind === "guest";
   const hostname = isSim
     ? "linux-sim"
-    : repository
-      ? `${repository.owner}/${repository.name}`
-      : new URL(url!).hostname.replace(/^www\./, "");
+    : isGuest
+      ? "guest-http"
+      : repository
+        ? `${repository.owner}/${repository.name}`
+        : new URL(url!).hostname.replace(/^www\./, "");
 
   if (isMinimized) {
     const dockStyle: React.CSSProperties | undefined =
@@ -486,7 +492,7 @@ function WebWindowInner({
         </div>
         <div className="web-window-address">
           <span className="web-window-prompt">$</span>
-          <span>{isSim ? "~/sim" : `~/projects/${hostname}`}</span>
+          <span>{isSim ? "~/sim" : isGuest ? "~/guest" : `~/projects/${hostname}`}</span>
         </div>
         <div
           className="web-window-actions"
@@ -569,7 +575,9 @@ function WebWindowInner({
           />
         )}
         {isSim ? (
-          <SimView onReady={onSimReady} />
+          <SimView onReady={onSimReady} onServed={onSimServed} />
+        ) : isGuest ? (
+          <iframe className="web-window-frame" src="/guest/" title="guest httpd" loading="lazy" />
         ) : repository ? (
           <RepositoryBrowser owner={repository.owner} repository={repository.name} />
         ) : (

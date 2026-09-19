@@ -137,7 +137,7 @@ function SkeletonCard() {
 
 type WindowEntry = {
   id: string;
-  kind: "repo" | "url" | "sim";
+  kind: "repo" | "url" | "sim" | "guest";
   url: string;
   repository: { owner: string; name: string } | null;
   homepage: string | null;
@@ -154,6 +154,7 @@ export default function HomePage() {
   const [nextZ, setNextZ] = useState(210);
   const simIdRef = useRef<string | null>(null);
   const simAutoOpened = useRef(false);
+  const guestAutoOpened = useRef(false);
 
   const { data, error, isLoading } = useSWR<GitHubData>(
     "/api/github",
@@ -270,6 +271,32 @@ export default function HomePage() {
     if (!id) return;
     setWindows((ws) => ws.map((w) => (w.id === id ? { ...w, minimized: true } : w)));
     setActiveId((cur) => (cur === id ? null : cur));
+  };
+
+  // Once the guest is serving HTTP through the proxy, show the page it serves.
+  const openGuest = () => {
+    const existing = windows.find((w) => w.kind === "guest");
+    if (existing) {
+      setWindows((ws) => ws.map((w) => (w.id === existing.id ? { ...w, minimized: false, z: nextZ } : w)));
+      setActiveId(existing.id);
+      setNextZ((z) => z + 1);
+      return;
+    }
+    const id = `win-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`;
+    const stagger = windows.length % 6;
+    const initialOffset = { x: stagger * 32, y: stagger * 28 };
+    setWindows((ws) => [
+      ...ws,
+      { id, kind: "guest", url: "guest-http", repository: null, homepage: null, z: nextZ, minimized: false, initialOffset },
+    ]);
+    setActiveId(id);
+    setNextZ((z) => z + 1);
+  };
+
+  const handleSimServed = () => {
+    if (guestAutoOpened.current) return;
+    guestAutoOpened.current = true;
+    openGuest();
   };
 
   const closeWindow = (id?: string) => {
@@ -685,6 +712,7 @@ export default function HomePage() {
             initialOffset={w.initialOffset}
             closable={w.kind !== "sim"}
             onSimReady={w.kind === "sim" ? handleSimReady : undefined}
+            onSimServed={w.kind === "sim" ? handleSimServed : undefined}
           />
         );
       })}
