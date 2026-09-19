@@ -10,13 +10,15 @@ type Listener = (status: SimStatus, detail?: string) => void;
 /**
  * The emulator is a module-level singleton whose DOM lives in a detached
  * "host" element. Windows can be minimized (which unmounts their content) and
- * restored; v86 binds its screen/serial adapters to the DOM nodes, so we keep
- * those nodes alive across mount/unmount and just re-parent the host instead
- * of rebooting the guest.
+ * restored; v86 binds its screen adapter to the DOM nodes, so we keep those
+ * nodes alive across mount/unmount and just re-parent the host instead of
+ * rebooting the guest.
+ *
+ * A single VGA console (tty0) shows both the kernel boot log and the shell —
+ * there is no separate serial terminal.
  */
 let host: HTMLElement | null = null;
 let boot: Promise<SimVm> | null = null;
-let resizeObserver: ResizeObserver | null = null;
 let status: SimStatus = "loading";
 let detail: string | undefined;
 const listeners = new Set<Listener>();
@@ -28,88 +30,33 @@ function emit(next: SimStatus, nextDetail?: string) {
 }
 
 function buildHost(): HTMLElement {
-  const root = document.createElement("div");
-  root.className = "sim-view";
-
   // v86 ScreenAdapter expects: firstChild = text div, plus a <canvas>.
   const screen = document.createElement("div");
   screen.className = "sim-screen";
   screen.tabIndex = 0;
+
   const text = document.createElement("div");
   text.style.whiteSpace = "pre";
   text.style.font = "14px monospace";
   text.style.lineHeight = "14px";
+
   const canvas = document.createElement("canvas");
   canvas.style.display = "none";
+
   screen.append(text, canvas);
-
-  const term = document.createElement("div");
-  term.className = "sim-term";
-
-  root.append(screen, term);
-  return root;
+  return screen;
 }
 
 async function ensureBoot(): Promise<SimVm> {
   if (boot) return boot;
 
   host = buildHost();
-  const screenEl = host.querySelector<HTMLElement>(".sim-screen");
-  const termEl = host.querySelector<HTMLElement>(".sim-term");
   emit("loading");
 
   boot = (async () => {
-    const vm = await createSimVm(screenEl ? { screen: screenEl } : {}, { autostart: true });
-    const emulator = vm.emulator;
-
-    // Terminal bound to serial0.
-    const [{ Terminal }, { FitAddon }] = await Promise.all([
-      import("@xterm/xterm"),
-      import("@xterm/addon-fit"),
-    ]);
-
-    const term = new Terminal({
-      convertEol: false,
-      cursorBlink: true,
-      fontSize: 12,
-      fontFamily: "ui-monospace, SFMono-Regular, Menlo, monospace",
-      theme: { background: "#000000", foreground: "#7dffa0", cursor: "#39d353" },
-    });
-    const fit = new FitAddon();
-    term.loadAddon(fit);
-    if (termEl) {
-      term.open(termEl);
-      const refit = () => {
-        try {
-          if (termEl.clientWidth > 0 && termEl.clientHeight > 0) fit.fit();
-        } catch {
-          // ignore fit races while the window is hidden/resized
-        }
-      };
-      refit();
-      resizeObserver = new ResizeObserver(refit);
-      resizeObserver.observe(termEl);
-    }
-
-    // Auto-login: the placeholder image runs a getty on ttyS0.
-    let line = "";
-    let loggedIn = false;
-    emulator.add_listener("serial0-output-byte", (byte) => {
-      const ch = String.fromCharCode(byte);
-      term.write(ch);
-      if (loggedIn) return;
-      line += ch;
-      if (line.endsWith("login: ")) {
-        emulator.serial0_send("root\n");
-        loggedIn = true;
-      }
-      if (line.length > 200) line = line.slice(-200);
-    });
-    term.onData((data) => emulator.serial0_send(data));
-
-    emulator.add_listener("emulator-ready", () => emit("booting"));
-    emulator.add_listener("emulator-started", () => emit("running"));
-
+    const vm = await createSimVm({ screen: host }, { autostart: true });
+    vm.emulator.add_listener("emulator-ready", () => emit("booting"));
+    vm.emulator.add_listener("emulator-started", () => emit("running"));
     return vm;
   })();
 
@@ -153,7 +100,7 @@ export function SimView() {
           {current === "running" ? "guest running" : `guest ${current}`}
           {currentDetail ? ` — ${currentDetail}` : ""}
         </span>
-        <span className="sim-hint">click the screen to type · serial console below</span>
+        <span className="sim-hint">click the console and type</span>
       </div>
       <div className="sim-slot" ref={slot} />
     </div>
