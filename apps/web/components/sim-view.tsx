@@ -23,6 +23,9 @@ let boot: Promise<SimVm> | null = null;
 let refit: (() => void) | null = null;
 let status: SimStatus = "loading";
 let detail: string | undefined;
+/** Called once when the guest reaches an interactive shell prompt. */
+let readyCallback: (() => void) | null = null;
+let announcedReady = false;
 const listeners = new Set<Listener>();
 
 function emit(next: SimStatus, nextDetail?: string) {
@@ -78,19 +81,23 @@ async function ensureBoot(): Promise<SimVm> {
       }
     }
 
-    // The guest runs a getty on ttyS0; log in as root automatically.
-    let seen = "";
+    // The guest runs a getty on ttyS0; log in as root automatically, then
+    // report readiness once the shell prompt appears.
+    let tail = "";
     let loggedIn = false;
     emulator.add_listener("serial0-output-byte", (byte) => {
       const char = String.fromCharCode(byte);
       terminal.write(char);
-      if (loggedIn) return;
-      seen += char;
-      if (seen.endsWith("login: ")) {
+      tail = (tail + char).slice(-200);
+      if (!loggedIn && tail.endsWith("login: ")) {
         emulator.serial0_send("root\n");
         loggedIn = true;
+        return;
       }
-      if (seen.length > 400) seen = seen.slice(-400);
+      if (loggedIn && !announcedReady && /\/root%\s*$/.test(tail)) {
+        announcedReady = true;
+        readyCallback?.();
+      }
     });
     terminal.onData((data) => emulator.serial0_send(data));
 
@@ -113,12 +120,13 @@ async function ensureBoot(): Promise<SimVm> {
   return boot;
 }
 
-export function SimView() {
+export function SimView({ onReady }: { onReady?: () => void } = {}) {
   const slot = useRef<HTMLDivElement>(null);
   const [current, setCurrent] = useState<SimStatus>(status);
   const [currentDetail, setCurrentDetail] = useState<string | undefined>(detail);
 
   useEffect(() => {
+    readyCallback = onReady ?? null;
     const listener: Listener = (next, nextDetail) => {
       setCurrent(next);
       setCurrentDetail(nextDetail);
@@ -136,9 +144,12 @@ export function SimView() {
     return () => {
       cancelAnimationFrame(raf);
       listeners.delete(listener);
+      if (readyCallback === onReady) readyCallback = null;
       // Detach (keep alive) so minimize/restore does not reboot the guest.
       if (host && host.parentElement === node) host.remove();
     };
+    // onReady identity is stable in practice; the callback is read via module state.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   return (

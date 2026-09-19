@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import useSWR from "swr";
 import { MatrixRain } from "@/components/matrix-rain";
 import { GlitchText } from "@/components/glitch-text";
@@ -152,6 +152,8 @@ export default function HomePage() {
   const [windows, setWindows] = useState<WindowEntry[]>([]);
   const [activeId, setActiveId] = useState<string | null>(null);
   const [nextZ, setNextZ] = useState(210);
+  const simIdRef = useRef<string | null>(null);
+  const simAutoOpened = useRef(false);
 
   const { data, error, isLoading } = useSWR<GitHubData>(
     "/api/github",
@@ -167,6 +169,14 @@ export default function HomePage() {
     const timer = setTimeout(() => setShowContent(true), 500);
     return () => clearTimeout(timer);
   }, []);
+
+  // Boot the simulator as soon as the page is mounted (once).
+  useEffect(() => {
+    if (!mounted || simAutoOpened.current) return;
+    simAutoOpened.current = true;
+    openSim();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [mounted]);
 
   // Body scroll lock: only while a window is active (visible and focused).
   // When no window is active (deactivated, minimized, or closed), the home
@@ -235,12 +245,14 @@ export default function HomePage() {
   const openSim = () => {
     const existing = windows.find((w) => w.kind === "sim");
     if (existing) {
+      simIdRef.current = existing.id;
       setWindows((ws) => ws.map((w) => (w.id === existing.id ? { ...w, minimized: false, z: nextZ } : w)));
       setActiveId(existing.id);
       setNextZ((z) => z + 1);
       return;
     }
     const id = `win-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`;
+    simIdRef.current = id;
     const stagger = windows.length % 6;
     const initialOffset = { x: stagger * 32, y: stagger * 28 };
     setWindows((ws) => [
@@ -249,6 +261,15 @@ export default function HomePage() {
     ]);
     setActiveId(id);
     setNextZ((z) => z + 1);
+  };
+
+  // The simulator boots on page load; once its shell is ready it steps out of
+  // the way by minimizing itself (it can be reopened from the dock).
+  const handleSimReady = () => {
+    const id = simIdRef.current;
+    if (!id) return;
+    setWindows((ws) => ws.map((w) => (w.id === id ? { ...w, minimized: true } : w)));
+    setActiveId((cur) => (cur === id ? null : cur));
   };
 
   const closeWindow = (id?: string) => {
@@ -662,6 +683,8 @@ export default function HomePage() {
             onMinimize={minimizeWindow}
             onRestore={restoreWindow}
             initialOffset={w.initialOffset}
+            closable={w.kind !== "sim"}
+            onSimReady={w.kind === "sim" ? handleSimReady : undefined}
           />
         );
       })}

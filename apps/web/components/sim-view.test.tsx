@@ -77,9 +77,9 @@ afterEach(() => {
   cleanup();
 });
 
-async function renderSimView() {
+async function renderSimView(props: { onReady?: () => void } = {}) {
   const { SimView } = await import("@/components/sim-view");
-  return render(<SimView />);
+  return render(<SimView {...props} />);
 }
 
 function emitSerial(text: string) {
@@ -116,6 +116,18 @@ describe("SimView", () => {
     await waitFor(() => expect(mocks.calls.createSimVm).toBe(1));
     mocks.getOnData()?.("ls\n");
     expect(mocks.calls.serialSend).toContain("ls\n");
+  });
+
+  it("reports readiness once the shell prompt appears (fired once)", async () => {
+    const onReady = vi.fn();
+    await renderSimView({ onReady });
+    await waitFor(() => expect(mocks.calls.createSimVm).toBe(1));
+    emitSerial("(none) login: ");
+    expect(onReady).not.toHaveBeenCalled();
+    emitSerial("\r\n/root% ");
+    expect(onReady).toHaveBeenCalledTimes(1);
+    emitSerial("\r\n/root% ");
+    expect(onReady).toHaveBeenCalledTimes(1);
   });
 
   it("hides the status line once running (terminal takes full height)", async () => {

@@ -40,6 +40,31 @@ describe("WebWindow", () => {
     expect(container.querySelector("iframe")).toBeNull();
   });
 
+  it("closable=false 时关闭按钮禁用，点击与 Escape 都不关闭", () => {
+    const onClose = vi.fn();
+    const { container } = render(
+      <WebWindow
+        id="win-sim-locked"
+        kind="sim"
+        active
+        url="linux-sim"
+        onClose={onClose}
+        closable={false}
+      />,
+    );
+    const closeBtn = container.querySelector(
+      ".web-window-close",
+    ) as HTMLButtonElement | null;
+    expect(closeBtn).not.toBeNull();
+    expect(closeBtn!.disabled).toBe(true);
+
+    fireEvent.click(closeBtn!);
+    expect(onClose).not.toHaveBeenCalled();
+
+    fireEvent.keyDown(document, { key: "Escape" });
+    expect(onClose).not.toHaveBeenCalled();
+  });
+
   it("kind='sim' 时渲染 SimView 而非 iframe，且地址栏显示 ~/sim", () => {
     const { container } = render(
       <WebWindow

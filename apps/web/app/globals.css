@@ -388,6 +388,13 @@ html {
 .web-window-inactive .web-window-controls:hover .web-window-close { background: #ff5f57; box-shadow: 0 0 0 1px rgba(73, 0, 0, 0.22); }
 .web-window-inactive .web-window-controls:hover .web-window-minimize { background: #febc2e; box-shadow: 0 0 0 1px rgba(88, 66, 0, 0.22); }
 .web-window-inactive .web-window-controls:hover .web-window-maximize { background: #28c840; box-shadow: 0 0 0 1px rgba(0, 48, 8, 0.28); }
+/* Disabled close (non-closable windows): inert gray, glyph never revealed */
+.web-window-control:disabled { cursor: not-allowed; filter: none; }
+.web-window-close:disabled,
+.web-window-inactive .web-window-controls:hover .web-window-close:disabled { background: #6f6f6f; box-shadow: 0 0 0 1px rgba(0, 0, 0, 0.3); }
+.web-window-controls:hover .web-window-close:disabled,
+.web-window-inactive .web-window-controls:hover .web-window-close:disabled { color: transparent; }
+.web-window-minimized-close:disabled { cursor: not-allowed; opacity: 0.35; }
 
 .web-window-address {
   display: flex;

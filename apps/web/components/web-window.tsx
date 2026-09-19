@@ -20,6 +20,10 @@ interface WebWindowProps {
   onMinimize?: (id: string) => void;
   onRestore?: (id: string) => void;
   initialOffset?: { x: number; y: number };
+  /** When false the window cannot be closed (no toolbar/dock close, no Escape). */
+  closable?: boolean;
+  /** Called once the embedded simulator reaches an interactive shell. */
+  onSimReady?: () => void;
 }
 
 type ResizeDir = "n" | "s" | "e" | "w" | "ne" | "nw" | "se" | "sw";
@@ -43,6 +47,8 @@ function WebWindowInner({
   onMinimize,
   onRestore,
   initialOffset,
+  closable = true,
+  onSimReady,
 }: WebWindowProps) {
   const windowRef = useRef<HTMLElement>(null);
   const inactiveOverlayRef = useRef<HTMLButtonElement>(null);
@@ -121,13 +127,13 @@ function WebWindowInner({
     const closeOnEscape = (event: KeyboardEvent) => {
       if (event.key === "Escape") onClose(id);
     };
-    document.addEventListener("keydown", closeOnEscape);
+    if (closable) document.addEventListener("keydown", closeOnEscape);
     if (!id) document.body.style.overflow = "hidden";
     return () => {
-      document.removeEventListener("keydown", closeOnEscape);
+      if (closable) document.removeEventListener("keydown", closeOnEscape);
       if (!id) document.body.style.overflow = "";
     };
-  }, [url, repository, onClose, isMinimized, active, id]);
+  }, [url, repository, onClose, isMinimized, active, id, closable]);
 
   useEffect(() => {
     if (id) return;
@@ -377,7 +383,14 @@ function WebWindowInner({
           <span className="web-window-minimized-title">~/projects/{hostname}</span>
           <span className="web-window-minimized-hint">↗ Restore</span>
         </button>
-        <button className="web-window-minimized-close" onClick={handleClose} type="button" aria-label="Close preview" title="Close">
+        <button
+          className="web-window-minimized-close"
+          onClick={handleClose}
+          type="button"
+          aria-label="Close preview"
+          title={closable ? "Close" : "This window cannot be closed"}
+          disabled={!closable}
+        >
           ×
         </button>
       </div>
@@ -435,9 +448,10 @@ function WebWindowInner({
           <button
             aria-label="Close preview"
             className="web-window-control web-window-close"
+            disabled={!closable}
             onClick={(e) => {
               e.stopPropagation();
-              handleClose();
+              if (closable) handleClose();
             }}
             type="button"
           />
@@ -555,7 +569,7 @@ function WebWindowInner({
           />
         )}
         {isSim ? (
-          <SimView />
+          <SimView onReady={onSimReady} />
         ) : repository ? (
           <RepositoryBrowser owner={repository.owner} repository={repository.name} />
         ) : (
