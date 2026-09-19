@@ -4,6 +4,8 @@ import { useEffect, useId, useRef, useState, memo, useMemo } from "react";
 import { CodePreview } from "@/components/code-preview";
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
+import rehypeRaw from "rehype-raw";
+import rehypeSanitize, { defaultSchema } from "rehype-sanitize";
 
 interface MarkdownPreviewProps {
   content: string;
@@ -109,13 +111,119 @@ const MermaidDiagram = memo(function MermaidDiagram({ chart }: { chart: string }
 
 export const MarkdownPreview = memo(function MarkdownPreview({ content, owner, repository, path, onNavigate }: MarkdownPreviewProps) {
   const resolveAssetUrl = (url: string) => {
-    const githubPath = githubRepositoryPath(url, owner, repository);
-    if (isExternalUrl(url) && !githubPath) return url;
-    const assetPath = githubPath || resolveRepositoryPath(url, path);
+    const trimmed = url.trim();
+    if (!trimmed || trimmed.startsWith("#") || trimmed.startsWith("data:") || trimmed.startsWith("blob:")) return trimmed;
+    const githubPath = githubRepositoryPath(trimmed, owner, repository);
+    if (isExternalUrl(trimmed) && !githubPath) return trimmed;
+    const assetPath = githubPath || resolveRepositoryPath(trimmed, path);
     return `/api/github/${encodeURIComponent(owner)}/${encodeURIComponent(repository)}/contents?${new URLSearchParams({ path: assetPath, raw: "1" })}`;
   };
 
+  const resolveSrcSet = (srcSet: string) => {
+    return srcSet
+      .split(",")
+      .map((candidate) => {
+        const parts = candidate.trim().split(/\s+/);
+        if (parts.length === 0 || !parts[0]) return null;
+        const resolved = resolveAssetUrl(parts[0]);
+        return [resolved, ...parts.slice(1)].join(" ");
+      })
+      .filter(Boolean)
+      .join(", ");
+  };
+
+  const sanitizeSchema = useMemo(
+    () => ({
+      ...defaultSchema,
+      tagNames: [
+        ...(defaultSchema.tagNames ?? []),
+        "video",
+        "audio",
+        "figure",
+        "figcaption",
+        "mark",
+        "abbr",
+        "cite",
+        "dfn",
+        "ins",
+        "u",
+        "small",
+      ],
+      attributes: {
+        ...defaultSchema.attributes,
+        a: [
+          ...((defaultSchema.attributes?.a as unknown[]) ?? []),
+          ["target", "_blank", "_self"],
+          "rel",
+          "title",
+          "className",
+          "style",
+        ],
+        img: [
+          ...((defaultSchema.attributes?.img as unknown[]) ?? []),
+          "srcSet",
+          "sizes",
+          "width",
+          "height",
+          "title",
+          "loading",
+          "decoding",
+          "referrerPolicy",
+          "crossOrigin",
+          "style",
+          "className",
+        ],
+        source: [
+          ...((defaultSchema.attributes?.source as unknown[]) ?? []),
+          "src",
+          "media",
+          "type",
+          "sizes",
+          "width",
+          "height",
+          "style",
+        ],
+        video: [
+          "src",
+          "poster",
+          "controls",
+          "autoPlay",
+          "loop",
+          "muted",
+          "playsInline",
+          "preload",
+          "width",
+          "height",
+          "style",
+          "className",
+          "crossOrigin",
+        ],
+        audio: ["src", "controls", "autoPlay", "loop", "muted", "preload", "style", "className"],
+        div: [...((defaultSchema.attributes?.div as unknown[]) ?? []), "align", "style", "className"],
+        p: ["align", "style", "className"],
+        span: ["style", "className"],
+        figure: ["align", "style", "className"],
+        figcaption: ["align", "style", "className"],
+        h1: ["align", "style", "className", "id"],
+        h2: [...((defaultSchema.attributes?.h2 as unknown[]) ?? []), "align", "style", "id"],
+        h3: ["align", "style", "className", "id"],
+        h4: ["align", "style", "className", "id"],
+        h5: ["align", "style", "className", "id"],
+        h6: ["align", "style", "className", "id"],
+        table: [...((defaultSchema.attributes?.table as unknown[]) ?? []), "align", "style", "className"],
+        th: ["align", "valign", "style", "className", "width", "height"],
+        td: ["align", "valign", "style", "className", "width", "height"],
+        tr: ["align", "valign", "style", "className"],
+        "*": [...((defaultSchema.attributes?.["*"] as unknown[]) ?? []), "style", "className", "id"],
+      },
+      strip: [...(defaultSchema.strip ?? []), "style"],
+    }),
+    []
+  );
+
   const remarkPlugins = useMemo(() => [remarkGfm], []);
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const rehypePlugins = useMemo(() => [rehypeRaw, [rehypeSanitize, sanitizeSchema] as any], [sanitizeSchema]);
   return (
     <div className="markdown-preview" style={{ contentVisibility: "auto", containIntrinsicSize: "600px 400px" } as React.CSSProperties}>
       <ReactMarkdown
@@ -140,8 +248,47 @@ export const MarkdownPreview = memo(function MarkdownPreview({ content, owner, r
             if (href?.startsWith("#")) return <a {...props} href={href}>{children}</a>;
             return <a {...props} href={href} rel="noreferrer" target="_blank">{children}</a>;
           },
-          img({ src, alt, ...props }) {
-            return <img {...props} alt={alt || ""} src={typeof src === "string" ? resolveAssetUrl(src) : undefined} />;
+          img({ src, srcSet, ...props }) {
+            return (
+              <img
+                {...props}
+                alt={typeof props.alt === "string" ? props.alt : ""}
+                src={typeof src === "string" ? resolveAssetUrl(src) : undefined}
+                srcSet={typeof srcSet === "string" ? resolveSrcSet(srcSet) : undefined}
+                loading="lazy"
+                decoding="async"
+              />
+            );
+          },
+          source({ src, srcSet, ...props }) {
+            return (
+              <source
+                {...props}
+                src={typeof src === "string" ? resolveAssetUrl(src) : undefined}
+                srcSet={typeof srcSet === "string" ? resolveSrcSet(srcSet) : undefined}
+              />
+            );
+          },
+          video({ src, poster, ...props }) {
+            return (
+              <video
+                {...props}
+                controls
+                preload="metadata"
+                src={typeof src === "string" ? resolveAssetUrl(src) : undefined}
+                poster={typeof poster === "string" ? resolveAssetUrl(poster) : undefined}
+              />
+            );
+          },
+          audio({ src, ...props }) {
+            return (
+              <audio
+                {...props}
+                controls
+                preload="metadata"
+                src={typeof src === "string" ? resolveAssetUrl(src) : undefined}
+              />
+            );
           },
           pre({ children }) {
             return <>{children}</>;
@@ -157,6 +304,7 @@ export const MarkdownPreview = memo(function MarkdownPreview({ content, owner, r
           },
         }}
         remarkPlugins={remarkPlugins}
+        rehypePlugins={rehypePlugins}
       >
         {content}
       </ReactMarkdown>
