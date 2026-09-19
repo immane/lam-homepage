@@ -35,6 +35,74 @@ let servedCallback: (() => void) | null = null;
 let announcedServed = false;
 let emulatorRef: SimVm["emulator"] | null = null;
 const listeners = new Set<Listener>();
+const SNAPSHOT_DB = "lam-linux-sim";
+const SNAPSHOT_STORE = "snapshots";
+const SNAPSHOT_KEY = "buildroot-bzimage68-v1";
+const SNAPSHOT_INTERVAL_MS = 60_000;
+let snapshotInFlight = false;
+let snapshotPageHideRegistered = false;
+
+type StatefulEmulator = SimVm["emulator"] & {
+  save_state(callback: (error: Error | null, state?: ArrayBuffer) => void): void;
+};
+
+function openSnapshotDb(): Promise<IDBDatabase | null> {
+  if (typeof indexedDB === "undefined") return Promise.resolve(null);
+  return new Promise((resolve) => {
+    const request = indexedDB.open(SNAPSHOT_DB, 1);
+    request.onupgradeneeded = () => request.result.createObjectStore(SNAPSHOT_STORE);
+    request.onsuccess = () => resolve(request.result);
+    request.onerror = () => resolve(null);
+  });
+}
+
+async function readSnapshot(): Promise<ArrayBuffer | undefined> {
+  const db = await openSnapshotDb();
+  if (!db) return undefined;
+  return new Promise((resolve) => {
+    const request = db.transaction(SNAPSHOT_STORE, "readonly").objectStore(SNAPSHOT_STORE).get(SNAPSHOT_KEY);
+    request.onsuccess = () => {
+      db.close();
+      resolve(request.result instanceof ArrayBuffer ? request.result : undefined);
+    };
+    request.onerror = () => {
+      db.close();
+      resolve(undefined);
+    };
+  });
+}
+
+async function writeSnapshot(state: ArrayBuffer): Promise<void> {
+  const db = await openSnapshotDb();
+  if (!db) return;
+  await new Promise<void>((resolve) => {
+    const transaction = db.transaction(SNAPSHOT_STORE, "readwrite");
+    transaction.objectStore(SNAPSHOT_STORE).put(state, SNAPSHOT_KEY);
+    transaction.oncomplete = () => {
+      db.close();
+      resolve();
+    };
+    transaction.onerror = () => {
+      db.close();
+      resolve();
+    };
+  });
+}
+
+function saveSnapshot() {
+  if (!emulatorRef || !announcedReady || snapshotInFlight) return;
+  snapshotInFlight = true;
+  (emulatorRef as StatefulEmulator).save_state((error, state) => {
+    snapshotInFlight = false;
+    if (!error && state) void writeSnapshot(state);
+  });
+}
+
+function registerSnapshotOnPageHide() {
+  if (snapshotPageHideRegistered || typeof window === "undefined") return;
+  snapshotPageHideRegistered = true;
+  window.addEventListener("pagehide", saveSnapshot);
+}
 
 function emit(next: SimStatus, nextDetail?: string) {
   status = next;
@@ -143,6 +211,7 @@ async function provisionGuest(
         write("[host] guest httpd is reachable on :80\r\n");
         announcedServed = true;
         servedCallback?.();
+        saveSnapshot();
         return;
       }
       await new Promise((resolve) => setTimeout(resolve, 1000));
@@ -158,9 +227,11 @@ async function ensureBoot(): Promise<SimVm> {
 
   host = buildHost();
   const vga = buildVgaContainer();
+  registerSnapshotOnPageHide();
   emit("loading");
 
   boot = (async () => {
+    const initialState = await readSnapshot();
     // The stock kernel we started with has no PCI/NIC support, so host<->guest
     // networking needs v86's upstream buildroot image (modern kernel, virtio
     // NIC) with the in-browser "fetch" backend.
@@ -173,6 +244,7 @@ async function ensureBoot(): Promise<SimVm> {
       },
       network: { type: "virtio", relayUrl: "fetch" },
       filesystem: true,
+      initialState,
     });
     const emulator = vm.emulator;
     emulatorRef = emulator;
@@ -235,6 +307,15 @@ async function ensureBoot(): Promise<SimVm> {
     emulator.add_listener("emulator-started", () => {
       emit("running");
       refit?.();
+      if (initialState) {
+        announcedReady = true;
+        announcedServed = true;
+        readyCallback?.();
+        servedCallback?.();
+        // The terminal itself is not part of v86's snapshot. Ask the restored
+        // shell to redraw its prompt after serial listeners are attached.
+        emulator.serial0_send("\n");
+      }
     });
 
     const [{ Terminal }, { FitAddon }] = await Promise.all([
@@ -299,6 +380,8 @@ async function ensureBoot(): Promise<SimVm> {
       while (end > 0 && ready[end - 1] === "") end--;
       if (end > 0) terminal.write(ready.slice(0, end).map((line) => line + "\r\n").join(""));
     }, 120);
+
+    setInterval(saveSnapshot, SNAPSHOT_INTERVAL_MS);
 
     return vm;
   })();

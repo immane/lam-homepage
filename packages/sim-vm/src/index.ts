@@ -90,6 +90,8 @@ export interface SimOptions {
   vgaMemorySize?: number;
   /** Start emulation immediately after construction. Defaults to `true`. */
   autostart?: boolean;
+  /** A v86 snapshot created with the same emulator configuration. */
+  initialState?: ArrayBuffer;
 }
 
 export interface SimVm {
@@ -181,6 +183,8 @@ export async function createSimVm(mount: SimMount = {}, options: SimOptions = {}
     bios: { url: assets.bios },
     vga_bios: { url: assets.vgaBios },
   };
+
+  if (options.initialState) v86Options.initial_state = { buffer: options.initialState };
 
   if (mount.screen) v86Options.screen = { container: mount.screen };
   if (mount.serial) v86Options.serial_console = { type: "textarea", container: mount.serial };
