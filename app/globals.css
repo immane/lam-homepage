@@ -94,7 +94,6 @@
 
 html {
   scrollbar-gutter: stable;
-  overflow-y: scroll;
 }
 
 @layer base {
@@ -103,7 +102,6 @@ html {
   }
   body {
     @apply bg-background text-foreground;
-    overflow-y: scroll;
     scrollbar-gutter: stable;
   }
 }

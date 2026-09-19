@@ -147,14 +147,18 @@ export default function HomePage() {
     return () => clearTimeout(timer);
   }, []);
 
-  // Body scroll lock: only when an active, non-minimized window exists
+  // Body scroll lock: whenever any non-minimized window is open.
+  // (Locking on activeId only is not enough: deactivating/minimizing/closing
+  // the active window clears activeId while other visible windows remain.
+  // This relies on html having visible overflow so the body value propagates
+  // to the viewport — do not put overflow-y:scroll back on html/body.)
   useEffect(() => {
-    const hasActiveVisible = !!activeId && windows.some((w) => w.id === activeId && !w.minimized);
-    document.body.style.overflow = hasActiveVisible ? "hidden" : "";
+    const hasVisibleWindow = windows.some((w) => !w.minimized);
+    document.body.style.overflow = hasVisibleWindow ? "hidden" : "";
     return () => {
       document.body.style.overflow = "";
     };
-  }, [activeId, windows]);
+  }, [windows]);
 
   if (!mounted) {
     return <LoadingState />;
