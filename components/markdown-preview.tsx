@@ -343,7 +343,7 @@ export const MarkdownPreview = memo(function MarkdownPreview({ content, owner, r
             const code = String(children).replace(/\n$/, "");
 
             if (language === "mermaid") return <MermaidDiagram chart={code} />;
-            if (language) return <CodePreview code={code} language={language} padding="10px 12px" />;
+            if (language) return <CodePreview code={code} language={language} padding="10px 12px" wrapLongLines={false} />;
 
             // 无语言围栏代码块（如 ASCII 结构图）含换行时按块级渲染，用 <pre> 保留全部换行与空格
             if (String(children).includes("\n")) {

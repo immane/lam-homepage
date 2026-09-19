@@ -173,7 +173,9 @@ html {
 /* Custom scrollbar */
 ::-webkit-scrollbar {
   width: 8px;
+  height: 8px;
 }
+::-webkit-scrollbar-corner { background: transparent; }
 
 ::-webkit-scrollbar-track {
   background: var(--background);
@@ -489,7 +491,8 @@ html {
 .markdown-preview a { color: var(--matrix-green-bright); text-decoration: underline; text-underline-offset: 3px; }
 .markdown-preview blockquote { padding: 0.2em 1em; border-left: 3px solid var(--primary); color: var(--muted-foreground); }
 .markdown-preview code { padding: 0.16em 0.35em; border: 1px solid color-mix(in oklch, var(--primary) 22%, transparent); border-radius: 3px; background: color-mix(in oklch, var(--card) 80%, transparent); color: var(--matrix-green-bright); font-family: var(--font-mono); font-size: 0.88em; }
-.markdown-preview pre { overflow: auto; padding: 0; }
+/* markdown 围栏块不折行：整行保留、横向滚动（覆盖 .repository-preview pre 泄漏的 pre-wrap/break-word） */
+.markdown-preview pre { overflow: auto; padding: 0; white-space: pre; word-break: normal; overflow-wrap: normal; }
 /* 围栏块外边距：上下小间距，左右为 0 占满内容宽 */
 .markdown-preview > pre { margin: 0.4em 0; }
 /* 紧贴围栏块的上一元素下边距同样收紧（外边距折叠取最大值，只缩 pre 本身不够） */

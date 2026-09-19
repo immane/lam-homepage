@@ -81,9 +81,10 @@ interface CodePreviewProps {
   fileName?: string;
   language?: string;
   padding?: string;
+  wrapLongLines?: boolean;
 }
 
-export const CodePreview = memo(function CodePreview({ code, fileName, language, padding = "18px" }: CodePreviewProps) {
+export const CodePreview = memo(function CodePreview({ code, fileName, language, padding = "18px", wrapLongLines = true }: CodePreviewProps) {
   const lang = useMemo(() => getLanguage(fileName, language), [fileName, language]);
   return (
     <SyntaxHighlighter
@@ -93,7 +94,7 @@ export const CodePreview = memo(function CodePreview({ code, fileName, language,
       lineNumberStyle={{ color: "#397449", minWidth: "2.75em", paddingRight: "1em", textAlign: "right" }}
       showLineNumbers
       style={matrixTheme}
-      wrapLongLines
+      wrapLongLines={wrapLongLines}
     >
       {code}
     </SyntaxHighlighter>
