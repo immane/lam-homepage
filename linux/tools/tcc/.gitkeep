@@ -1,0 +1,2 @@
+# i386 tcc binary + minimal libc headers (dietlibc, fallback musl).
+# Artifacts are fetched/built by scripts; see linux/README.md.

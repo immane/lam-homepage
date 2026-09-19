@@ -12,7 +12,9 @@ __v0_jsx-dev-runtime.ts
 # Common ignores
 node_modules
 .next/
+out/
+.turbo/
 .playwright-mcp/
 .DS_Store
 package-lock.json
-tsconfig.tsbuildinfo
+*.tsbuildinfo

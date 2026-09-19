@@ -1,0 +1,2 @@
+# Runtime-compiled static server (built inside the guest by tcc).
+# Expect: server.c + build-server.sh + restart-server.

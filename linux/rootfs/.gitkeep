@@ -1,0 +1,1 @@
+# rootfs sources: busybox config, /init, and www/ (static export injected at build).
