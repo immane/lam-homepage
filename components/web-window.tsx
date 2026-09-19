@@ -42,6 +42,7 @@ function WebWindowInner({
   initialOffset,
 }: WebWindowProps) {
   const windowRef = useRef<HTMLElement>(null);
+  const inactiveOverlayRef = useRef<HTMLButtonElement>(null);
   const [internalMinimized, setInternalMinimized] = useState(false);
   const isMinimized = minimized !== undefined ? minimized : internalMinimized;
   const setIsMinimized = (v: boolean) => {
@@ -133,6 +134,36 @@ function WebWindowInner({
       document.body.style.overflow = "";
     };
   }, [id, url, repository, isMinimized]);
+
+  // Inactive windows are covered by a click-to-focus overlay, which would
+  // otherwise swallow wheel gestures (the page behind would scroll instead).
+  // Forward wheel to the underlying scroll container so hovering an inactive
+  // window scrolls its own content without focusing it (macOS-like).
+  useEffect(() => {
+    const overlay = inactiveOverlayRef.current;
+    if (!overlay || active || isMinimized) return;
+    const scroller = overlay.parentElement?.querySelector(".repository-preview");
+    if (!(scroller instanceof HTMLElement)) return;
+    const LINE_PX = 16;
+    const onWheel = (event: WheelEvent) => {
+      if (event.ctrlKey || event.metaKey) return; // pinch-zoom: leave to browser
+      const unit = event.deltaMode === 1 ? LINE_PX : event.deltaMode === 2 ? scroller.clientHeight : 1;
+      const dy = event.deltaY * unit;
+      const dx = event.deltaX * unit;
+      const canUp = scroller.scrollTop > 0;
+      const canDown = scroller.scrollTop + scroller.clientHeight < scroller.scrollHeight - 1;
+      const canLeft = scroller.scrollLeft > 0;
+      const canRight = scroller.scrollLeft + scroller.clientWidth < scroller.scrollWidth - 1;
+      const vertical = Math.abs(dy) >= Math.abs(dx);
+      const canMove = vertical ? (dy < 0 ? canUp : canDown) : (dx < 0 ? canLeft : canRight);
+      if (!canMove) return; // at edge: let it chain to the page
+      event.preventDefault();
+      scroller.scrollTop += dy;
+      scroller.scrollLeft += dx;
+    };
+    overlay.addEventListener("wheel", onWheel, { passive: false });
+    return () => overlay.removeEventListener("wheel", onWheel);
+  }, [active, isMinimized, repository, url]);
 
   // Sync DOM transform/size when pos/size state changes (for non-drag updates like maximize)
   useEffect(() => {
@@ -509,6 +540,7 @@ function WebWindowInner({
           <button
             aria-label={`Focus ${hostname}`}
             className="web-window-inactive-overlay"
+            ref={inactiveOverlayRef}
             onClick={(e) => {
               e.stopPropagation();
               handleFocus();
