@@ -2,9 +2,11 @@
 
 import { useEffect, useRef, useState, useCallback, memo } from "react";
 import { RepositoryBrowser } from "@/components/repository-browser";
+import { SimView } from "@/components/sim-view";
 
 interface WebWindowProps {
   id?: string;
+  kind?: "repo" | "url" | "sim";
   url: string | null;
   repository?: { owner: string; name: string } | null;
   homepage?: string | null;
@@ -27,6 +29,7 @@ const MIN_H = 280;
 
 function WebWindowInner({
   id,
+  kind = "repo",
   url,
   repository,
   homepage,
@@ -345,11 +348,14 @@ function WebWindowInner({
 
   const handleClose = useCallback(() => onClose(id), [onClose, id]);
 
-  if (!url && !repository) return null;
+  if (!url && !repository && kind !== "sim") return null;
 
-  const hostname = repository
-    ? `${repository.owner}/${repository.name}`
-    : new URL(url!).hostname.replace(/^www\./, "");
+  const isSim = kind === "sim";
+  const hostname = isSim
+    ? "linux-sim"
+    : repository
+      ? `${repository.owner}/${repository.name}`
+      : new URL(url!).hostname.replace(/^www\./, "");
 
   if (isMinimized) {
     const dockStyle: React.CSSProperties | undefined =
@@ -466,7 +472,7 @@ function WebWindowInner({
         </div>
         <div className="web-window-address">
           <span className="web-window-prompt">$</span>
-          <span>~/projects/{hostname}</span>
+          <span>{isSim ? "~/sim" : `~/projects/${hostname}`}</span>
         </div>
         <div
           className="web-window-actions"
@@ -494,7 +500,7 @@ function WebWindowInner({
                 />
               </svg>
             </button>
-          ) : !repository && url ? (
+          ) : !repository && url && !isSim ? (
             <a
               aria-label={`Open ${hostname} in new tab`}
               className="web-window-external-link"
@@ -548,7 +554,9 @@ function WebWindowInner({
             type="button"
           />
         )}
-        {repository ? (
+        {isSim ? (
+          <SimView />
+        ) : repository ? (
           <RepositoryBrowser owner={repository.owner} repository={repository.name} />
         ) : (
           <iframe className="web-window-frame" src={url!} title={hostname} loading="lazy" />

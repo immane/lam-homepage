@@ -762,3 +762,18 @@ html {
 @media (prefers-reduced-motion: reduce) {
   .web-window-backdrop, .web-window { animation: none; }
 }
+
+/* v86 simulator window */
+.sim-shell { display: flex; height: 100%; min-height: 0; flex-direction: column; background: #050805; }
+.sim-statusbar { display: flex; flex: none; align-items: center; gap: 8px; padding: 6px 12px; border-bottom: 1px solid color-mix(in oklch, var(--primary) 18%, transparent); background: var(--card); color: var(--muted-foreground); font-family: var(--font-mono); font-size: 11px; }
+.sim-status-dot { width: 8px; height: 8px; flex: none; border-radius: 50%; background: #febc2e; box-shadow: 0 0 8px color-mix(in oklch, #febc2e 55%, transparent); }
+.sim-status-dot[data-state="running"] { background: #28c840; box-shadow: 0 0 8px color-mix(in oklch, #28c840 55%, transparent); }
+.sim-status-dot[data-state="error"] { background: #ff5f57; box-shadow: 0 0 8px color-mix(in oklch, #ff5f57 55%, transparent); }
+.sim-hint { margin-left: auto; opacity: 0.7; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.sim-slot { display: flex; flex: 1; min-height: 0; }
+.sim-view { display: flex; flex: 1; min-height: 0; flex-direction: column; background: #000; }
+.sim-screen { flex: 0 0 auto; max-height: 42%; overflow: auto; padding: 8px 10px; border-bottom: 1px solid color-mix(in oklch, var(--primary) 18%, transparent); background: #000; color: #c8ffd4; outline: none; cursor: text; }
+.sim-screen:focus { box-shadow: inset 0 0 0 1px color-mix(in oklch, var(--primary) 45%, transparent); }
+.sim-term { flex: 1; min-height: 0; padding: 4px 6px 6px; background: #000; }
+.sim-term .xterm { height: 100%; }
+.sim-term .xterm-viewport { background: transparent !important; }

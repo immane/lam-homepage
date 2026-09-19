@@ -20,6 +20,10 @@ vi.mock("@/components/repository-browser", () => ({
   ),
 }));
 
+vi.mock("@/components/sim-view", () => ({
+  SimView: () => <div data-testid="sim-view-stub">sim</div>,
+}));
+
 describe("WebWindow", () => {
   it("有 repository 时渲染 RepositoryBrowser 而非 iframe", () => {
     const { container } = render(
@@ -34,6 +38,21 @@ describe("WebWindow", () => {
     expect(screen.getByTestId("repository-browser-stub")).toBeInTheDocument();
     expect(screen.getByTestId("repository-preview")).toBeInTheDocument();
     expect(container.querySelector("iframe")).toBeNull();
+  });
+
+  it("kind='sim' 时渲染 SimView 而非 iframe，且地址栏显示 ~/sim", () => {
+    const { container } = render(
+      <WebWindow
+        id="win-sim"
+        kind="sim"
+        active
+        url="linux-sim"
+        onClose={() => {}}
+      />,
+    );
+    expect(screen.getByTestId("sim-view-stub")).toBeInTheDocument();
+    expect(container.querySelector("iframe")).toBeNull();
+    expect(container.querySelector(".web-window-address")?.textContent).toContain("~/sim");
   });
 
   it("无 repository 有 url 时渲染 iframe 且 src 正确", () => {

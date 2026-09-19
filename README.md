@@ -37,6 +37,7 @@ Tip: Click any `ProjectCard` to open a repository preview in a multi-window laye
 | Tech Stack | `TechStack` grid for commonly used stack |
 | Window System | `WebWindow` multi-instance, draggable (header grab, viewport clamp, rAF direct `transform`), resizable (8 handles, edge-compensated, min 360x280), maximizable (double-click header), minimizable to bottom Dock (stacked at `z230`), inactive state (`inactive` 0.78 opacity, click empty to deactivate, click window to focus and raise `z`), no re-center on resize, first-window `perspective` centering fix, cascade offset `32x28` |
 | Repository Browser | `RepositoryBrowser`: `react-resizable-panels` split, `contents` API listing, breadcrumb, `README` priority, `mermaid` dark theme, `CodePreview` (PrismLight + line numbers + Matrix theme), image raw `?raw=1` |
+| Linux Simulator | `@lam/sim-vm` (v86) boots an i686 Linux guest in-browser; opened as a `WebWindow` (`kind: "sim"`) with the VGA console plus a serial `xterm` terminal. The guest is a module-level singleton re-parented into the window, so minimize/restore never reboots it. Assets are self-hosted under `public/sim` via `pnpm sim:assets`; also reachable at `/sim`. |
 | UX Details | Persistent scrollbar `scrollbar-gutter: stable` prevents layout shift, solid window on mobile to avoid haze, title/path bars `z-index` pinned above content, `contain: layout paint` + `will-change` perf, `backdrop-filter:none` while dragging |
 
 ---

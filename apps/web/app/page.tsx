@@ -78,6 +78,25 @@ const socialLinks = [
       </svg>
     ),
   },
+  {
+    name: "Linux Sim",
+    url: "#sim",
+    icon: (
+      <svg
+        className="w-5 h-5"
+        fill="none"
+        stroke="currentColor"
+        viewBox="0 0 24 24"
+      >
+        <path
+          strokeLinecap="round"
+          strokeLinejoin="round"
+          strokeWidth={2}
+          d="M8 9l3 3-3 3m5 0h3M5 20h14a2 2 0 002-2V6a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z"
+        />
+      </svg>
+    ),
+  },
 ];
 
 function LoadingState() {
@@ -118,6 +137,7 @@ function SkeletonCard() {
 
 type WindowEntry = {
   id: string;
+  kind: "repo" | "url" | "sim";
   url: string;
   repository: { owner: string; name: string } | null;
   homepage: string | null;
@@ -207,7 +227,26 @@ export default function HomePage() {
     const id = `win-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`;
     const stagger = windows.length % 6;
     const initialOffset = { x: stagger * 32, y: stagger * 28 };
-    setWindows((ws) => [...ws, { id, url, repository, homepage: normalizedHomepage, z: nextZ, minimized: false, initialOffset }]);
+    setWindows((ws) => [...ws, { id, kind: repository ? "repo" : "url", url, repository, homepage: normalizedHomepage, z: nextZ, minimized: false, initialOffset }]);
+    setActiveId(id);
+    setNextZ((z) => z + 1);
+  };
+
+  const openSim = () => {
+    const existing = windows.find((w) => w.kind === "sim");
+    if (existing) {
+      setWindows((ws) => ws.map((w) => (w.id === existing.id ? { ...w, minimized: false, z: nextZ } : w)));
+      setActiveId(existing.id);
+      setNextZ((z) => z + 1);
+      return;
+    }
+    const id = `win-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`;
+    const stagger = windows.length % 6;
+    const initialOffset = { x: stagger * 32, y: stagger * 28 };
+    setWindows((ws) => [
+      ...ws,
+      { id, kind: "sim", url: "linux-sim", repository: null, homepage: null, z: nextZ, minimized: false, initialOffset },
+    ]);
     setActiveId(id);
     setNextZ((z) => z + 1);
   };
@@ -324,6 +363,8 @@ export default function HomePage() {
                   onClick={() => {
                     if (link.url === "#tech-stack") {
                       scrollToTechStack();
+                    } else if (link.url === "#sim") {
+                      openSim();
                     } else if (link.url.startsWith("mailto:")) {
                       window.location.href = link.url;
                     } else {
@@ -607,6 +648,7 @@ export default function HomePage() {
           <WebWindow
             key={w.id}
             id={w.id}
+            kind={w.kind}
             url={w.url}
             repository={w.repository}
             homepage={w.homepage}
