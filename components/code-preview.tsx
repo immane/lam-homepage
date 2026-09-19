@@ -3,6 +3,8 @@
 import { memo, useMemo } from "react";
 import { PrismLight as SyntaxHighlighter } from "react-syntax-highlighter";
 import bash from "react-syntax-highlighter/dist/esm/languages/prism/bash";
+import csharp from "react-syntax-highlighter/dist/esm/languages/prism/csharp";
+import cpp from "react-syntax-highlighter/dist/esm/languages/prism/cpp";
 import css from "react-syntax-highlighter/dist/esm/languages/prism/css";
 import javascript from "react-syntax-highlighter/dist/esm/languages/prism/javascript";
 import json from "react-syntax-highlighter/dist/esm/languages/prism/json";
@@ -16,6 +18,8 @@ import typescript from "react-syntax-highlighter/dist/esm/languages/prism/typesc
 import yaml from "react-syntax-highlighter/dist/esm/languages/prism/yaml";
 
 SyntaxHighlighter.registerLanguage("bash", bash);
+SyntaxHighlighter.registerLanguage("csharp", csharp);
+SyntaxHighlighter.registerLanguage("cpp", cpp);
 SyntaxHighlighter.registerLanguage("css", css);
 SyntaxHighlighter.registerLanguage("javascript", javascript);
 SyntaxHighlighter.registerLanguage("json", json);
@@ -29,9 +33,13 @@ SyntaxHighlighter.registerLanguage("typescript", typescript);
 SyntaxHighlighter.registerLanguage("yaml", yaml);
 
 const languageAliases: Record<string, string> = {
+  "c#": "csharp",
+  "c++": "cpp",
   cjs: "javascript",
   cmd: "bash",
   console: "bash",
+  cpp: "cpp",
+  csharp: "csharp",
   dockerfile: "bash",
   htm: "markup",
   html: "markup",

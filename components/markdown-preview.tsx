@@ -19,11 +19,11 @@ interface MarkdownPreviewProps {
   onNavigate: (path: string) => void;
 }
 
-function isExternalUrl(url: string) {
+export function isExternalUrl(url: string) {
   return /^(?:[a-z][a-z\d+.-]*:|\/\/)/i.test(url);
 }
 
-function decodeSegment(segment: string) {
+export function decodeSegment(segment: string) {
   try {
     return decodeURIComponent(segment);
   } catch {
@@ -31,7 +31,7 @@ function decodeSegment(segment: string) {
   }
 }
 
-function resolveRepositoryPath(url: string, currentPath: string) {
+export function resolveRepositoryPath(url: string, currentPath: string) {
   const pathname = url.split(/[?#]/)[0];
   const segments = pathname.startsWith("/")
     ? []
@@ -49,7 +49,7 @@ function resolveRepositoryPath(url: string, currentPath: string) {
   return segments.join("/");
 }
 
-function githubRepositoryPath(url: string, owner: string, repository: string) {
+export function githubRepositoryPath(url: string, owner: string, repository: string) {
   if (!isExternalUrl(url)) return null;
 
   try {
@@ -263,6 +263,33 @@ export const MarkdownPreview = memo(function MarkdownPreview({ content, owner, r
   const scrollToAnchor = useCallback((rawFragment: string) => {
     const root = containerRef.current;
     if (!root) return;
+    const smoothTo = (el: Element) => {
+      if (typeof (el as HTMLElement).scrollIntoView === "function") {
+        el.scrollIntoView({ behavior: "smooth", block: "start" });
+      }
+    };
+    // querySelector needs escaped ids; fall back to manual comparison where
+    // CSS.escape is unavailable (never throws, exact same matches).
+    const findById = (id: string): Element | null => {
+      if (typeof CSS !== "undefined" && typeof CSS.escape === "function") {
+        return root.querySelector(`#${CSS.escape(id)}`);
+      }
+      const all = root.querySelectorAll("[id]");
+      for (const el of all) {
+        if (el.id === id) return el;
+      }
+      return null;
+    };
+    const findByName = (name: string): Element | null => {
+      if (typeof CSS !== "undefined" && typeof CSS.escape === "function") {
+        return root.querySelector(`a[name="${CSS.escape(name)}"]`);
+      }
+      const all = root.querySelectorAll("a[name]");
+      for (const el of all) {
+        if (el.getAttribute("name") === name) return el;
+      }
+      return null;
+    };
     let fragment = rawFragment;
     try {
       fragment = decodeURIComponent(rawFragment);
@@ -275,14 +302,14 @@ export const MarkdownPreview = memo(function MarkdownPreview({ content, owner, r
     }
     const candidates = [`user-content-${fragment}`, fragment];
     for (const id of candidates) {
-      const byId = root.querySelector(`#${CSS.escape(id)}`);
+      const byId = findById(id);
       if (byId) {
-        byId.scrollIntoView({ behavior: "smooth", block: "start" });
+        smoothTo(byId);
         return;
       }
-      const byName = root.querySelector(`a[name="${CSS.escape(id)}"]`);
+      const byName = findByName(id);
       if (byName) {
-        byName.scrollIntoView({ behavior: "smooth", block: "start" });
+        smoothTo(byName);
         return;
       }
     }
@@ -291,7 +318,7 @@ export const MarkdownPreview = memo(function MarkdownPreview({ content, owner, r
     const fallback = [...root.querySelectorAll("[id]")].find(
       (el) => el.id.toLowerCase() === `user-content-${lowered}` || el.id.toLowerCase() === lowered
     );
-    fallback?.scrollIntoView({ behavior: "smooth", block: "start" });
+    if (fallback) smoothTo(fallback);
   }, []);
 
   // Scroll lock lives on this persistent parent (not inside the lightbox) so
@@ -404,7 +431,7 @@ export const MarkdownPreview = memo(function MarkdownPreview({ content, owner, r
             return <pre {...props}>{children}</pre>;
           },
           code({ className, children, ...props }) {
-            const language = /language-(\w+)/.exec(className || "")?.[1];
+            const language = /language-([\w+-]+)/.exec(className || "")?.[1];
             const code = String(children).replace(/\n$/, "");
 
             if (language === "mermaid") return <MermaidDiagram chart={code} />;
