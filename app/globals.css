@@ -489,7 +489,14 @@ html {
 .markdown-preview a { color: var(--matrix-green-bright); text-decoration: underline; text-underline-offset: 3px; }
 .markdown-preview blockquote { padding: 0.2em 1em; border-left: 3px solid var(--primary); color: var(--muted-foreground); }
 .markdown-preview code { padding: 0.16em 0.35em; border: 1px solid color-mix(in oklch, var(--primary) 22%, transparent); border-radius: 3px; background: color-mix(in oklch, var(--card) 80%, transparent); color: var(--matrix-green-bright); font-family: var(--font-mono); font-size: 0.88em; }
-.markdown-preview pre > code { display: block; overflow: auto; padding: 15px; border-radius: 6px; background: color-mix(in oklch, var(--matrix-dark) 88%, var(--card)); color: var(--foreground); line-height: 1.55; }
+.markdown-preview pre { overflow: auto; padding: 0; }
+/* 围栏块外边距：上下小间距，左右为 0 占满内容宽 */
+.markdown-preview > pre { margin: 0.4em 0; }
+/* 紧贴围栏块的上一元素下边距同样收紧（外边距折叠取最大值，只缩 pre 本身不够） */
+.markdown-preview > :is(p, ul, ol, blockquote, table, h1, h2, h3, h4):has(+ pre) { margin-bottom: 0.4em; }
+.markdown-preview pre > code { display: block; overflow: auto; padding: 8px 12px; border-radius: 6px; background: color-mix(in oklch, var(--matrix-dark) 88%, var(--card)); color: var(--foreground); line-height: 1.55; white-space: pre; }
+/* 高亮块的内边距已在 pre 上（CodePreview 内联样式）， inner code 不再重复加 padding/border/background */
+.markdown-preview pre > code.code-preview-content { padding: 0; border: 0; background: transparent; }
 .markdown-preview table { display: block; max-width: 100%; overflow: auto; border-collapse: collapse; }
 .markdown-preview th, .markdown-preview td { padding: 7px 11px; border: 1px solid color-mix(in oklch, var(--primary) 24%, transparent); text-align: left; }
 .markdown-preview th { background: color-mix(in oklch, var(--primary) 12%, transparent); color: var(--matrix-green-bright); }

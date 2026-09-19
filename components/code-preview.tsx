@@ -80,14 +80,15 @@ interface CodePreviewProps {
   code: string;
   fileName?: string;
   language?: string;
+  padding?: string;
 }
 
-export const CodePreview = memo(function CodePreview({ code, fileName, language }: CodePreviewProps) {
+export const CodePreview = memo(function CodePreview({ code, fileName, language, padding = "18px" }: CodePreviewProps) {
   const lang = useMemo(() => getLanguage(fileName, language), [fileName, language]);
   return (
     <SyntaxHighlighter
       codeTagProps={{ className: "code-preview-content" }}
-      customStyle={{ margin: 0, padding: "18px", background: "transparent", fontFamily: "var(--font-mono)", fontSize: "12px", lineHeight: "1.65" }}
+      customStyle={{ margin: 0, padding, background: "transparent", fontFamily: "var(--font-mono)", fontSize: "12px", lineHeight: "1.65" }}
       language={lang}
       lineNumberStyle={{ color: "#397449", minWidth: "2.75em", paddingRight: "1em", textAlign: "right" }}
       showLineNumbers

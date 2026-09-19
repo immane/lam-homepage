@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useId, useRef, useState, memo, useMemo } from "react";
+import { useEffect, useId, useRef, useState, memo, useMemo, Children, isValidElement } from "react";
 import { CodePreview } from "@/components/code-preview";
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
@@ -290,15 +290,34 @@ export const MarkdownPreview = memo(function MarkdownPreview({ content, owner, r
               />
             );
           },
-          pre({ children }) {
-            return <>{children}</>;
+          pre({ children, ...props }) {
+            // 内层 code（带语言）已渲染为块级组件（CodePreview/Mermaid）或自带 <pre> 时直接透出，避免嵌套 <pre>
+            const array = Children.toArray(children);
+            if (array.length === 1 && isValidElement(array[0])) {
+              const type = (array[0] as { type?: unknown }).type;
+              if (type === CodePreview || type === MermaidDiagram || type === "pre") {
+                return <>{children}</>;
+              }
+            }
+            return <pre {...props}>{children}</pre>;
           },
           code({ className, children, ...props }) {
             const language = /language-(\w+)/.exec(className || "")?.[1];
             const code = String(children).replace(/\n$/, "");
 
             if (language === "mermaid") return <MermaidDiagram chart={code} />;
-            if (language) return <CodePreview code={code} language={language} />;
+            if (language) return <CodePreview code={code} language={language} padding="10px 12px" />;
+
+            // 无语言围栏代码块（如 ASCII 结构图）含换行时按块级渲染，用 <pre> 保留全部换行与空格
+            if (String(children).includes("\n")) {
+              return (
+                <pre>
+                  <code {...props} className={className}>
+                    {children}
+                  </code>
+                </pre>
+              );
+            }
 
             return <code {...props} className={className}>{children}</code>;
           },
