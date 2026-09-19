@@ -769,8 +769,7 @@ html {
 .sim-status-dot { width: 8px; height: 8px; flex: none; border-radius: 50%; background: #febc2e; box-shadow: 0 0 8px color-mix(in oklch, #febc2e 55%, transparent); }
 .sim-status-dot[data-state="running"] { background: #28c840; box-shadow: 0 0 8px color-mix(in oklch, #28c840 55%, transparent); }
 .sim-status-dot[data-state="error"] { background: #ff5f57; box-shadow: 0 0 8px color-mix(in oklch, #ff5f57 55%, transparent); }
-.sim-hint { margin-left: auto; opacity: 0.55; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.sim-slot { display: flex; flex: 1; min-height: 0; padding: 0 10px 10px; }
+.sim-slot { display: flex; flex: 1; min-height: 0; padding: 0; }
 .sim-screen { flex: 1; min-height: 0; overflow: auto; padding: 0; background: #000; color: #c8ffd4; outline: none; cursor: text; scrollbar-width: none; }
 .sim-screen::-webkit-scrollbar { display: none; }
 .sim-screen:focus { outline: none; }

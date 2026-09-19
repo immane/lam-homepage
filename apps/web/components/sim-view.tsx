@@ -94,14 +94,17 @@ export function SimView() {
 
   return (
     <div className="sim-shell">
-      <div className="sim-statusbar">
-        <span className="sim-status-dot" data-state={current} aria-hidden />
-        <span>
-          {current === "running" ? "guest running" : `guest ${current}`}
-          {currentDetail ? ` — ${currentDetail}` : ""}
-        </span>
-        <span className="sim-hint">click the console and type</span>
-      </div>
+      {/* The status line would otherwise steal vertical space from the
+          console; once the guest is up the console owns the full window. */}
+      {current !== "running" && (
+        <div className="sim-statusbar">
+          <span className="sim-status-dot" data-state={current} aria-hidden />
+          <span>
+            {`guest ${current}`}
+            {currentDetail ? ` — ${currentDetail}` : ""}
+          </span>
+        </div>
+      )}
       <div className="sim-slot" ref={slot} />
     </div>
   );

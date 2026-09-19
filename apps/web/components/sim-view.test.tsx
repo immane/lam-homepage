@@ -58,10 +58,11 @@ describe("SimView", () => {
     expect(container.querySelector(".sim-term")).toBeNull();
   });
 
-  it("reflects emulator-started as the running status", async () => {
+  it("hides the status line once the guest is running (console takes full height)", async () => {
     await renderSimView();
     await waitFor(() => expect(mocks.calls.createSimVm).toBe(1));
+    expect(screen.getByText(/guest /)).toBeInTheDocument();
     mocks.listeners.get("emulator-started")?.(undefined);
-    await waitFor(() => expect(screen.getByText(/guest running/)).toBeInTheDocument());
+    await waitFor(() => expect(screen.queryByText(/guest /)).toBeNull());
   });
 });
