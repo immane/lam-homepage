@@ -99,6 +99,10 @@ pnpm dev            # turbo -> @lam/web
 
 # 4. Build
 pnpm build && pnpm start
+
+# 5. Simulator assets (v86 wasm + BIOS + boot image, ~10MB, gitignored)
+pnpm sim:assets      # writes apps/web/public/sim/
+# then open http://localhost:3000/sim
 ```
 
 GitHub Token only needs `public_repo` read permission for GraphQL Pinned and higher REST limits. Without it, `fetchPinnedReposFromHTML` falls back to scraping.

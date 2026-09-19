@@ -11,7 +11,8 @@
     "start": "turbo run start --filter=@lam/web",
     "test": "turbo run test",
     "lint": "turbo run lint",
-    "typecheck": "turbo run typecheck"
+    "typecheck": "turbo run typecheck",
+    "sim:assets": "pnpm --filter @lam/sim-vm sync-assets"
   },
   "devDependencies": {
     "turbo": "^2.5.0"

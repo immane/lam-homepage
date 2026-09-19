@@ -5,5 +5,11 @@
   "type": "module",
   "exports": {
     ".": "./src/index.ts"
+  },
+  "scripts": {
+    "sync-assets": "node scripts/sync-assets.mjs"
+  },
+  "dependencies": {
+    "v86": "^0.5.461"
   }
 }

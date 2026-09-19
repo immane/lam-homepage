@@ -18,3 +18,6 @@ out/
 .DS_Store
 package-lock.json
 *.tsbuildinfo
+
+# v86 runtime assets (synced by packages/sim-vm/scripts/sync-assets.mjs)
+apps/web/public/sim/
