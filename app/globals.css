@@ -343,9 +343,26 @@ html {
   width: 12px;
   height: 12px;
   flex: none;
+  display: grid;
+  place-items: center;
+  padding: 0;
   border: 0;
   border-radius: 50%;
+  font-size: 10px;
+  font-weight: 700;
+  line-height: 1;
+  color: transparent;
+  transition: color 120ms ease;
 }
+
+/* macOS traffic lights: symbols appear on group hover */
+.web-window-close::after,
+.web-window-minimize::after,
+.web-window-maximize::after { font-weight: bold; -webkit-text-stroke: 0.4px currentColor; }
+.web-window-close::after { content: "×"; }
+.web-window-minimize::after { content: "−"; }
+.web-window-maximize::after { content: "+"; }
+.web-window-controls:hover .web-window-control { color: rgba(0, 0, 0, 0.55); }
 
 .web-window-close {
   cursor: pointer;
@@ -361,6 +378,12 @@ html {
 .web-window-minimize:hover { filter: brightness(1.14); }
 .web-window-maximize { cursor: pointer; background: #28c840; box-shadow: 0 0 0 1px rgba(0, 48, 8, 0.28); }
 .web-window-maximize:hover { filter: brightness(1.14); }
+
+/* Inactive windows: traffic lights turn gray (symbols still show on hover) */
+.web-window-inactive .web-window-close,
+.web-window-inactive .web-window-minimize,
+.web-window-inactive .web-window-maximize { background: #6f6f6f; box-shadow: 0 0 0 1px rgba(0, 0, 0, 0.3); }
+.web-window-inactive .web-window-controls:hover .web-window-control { color: rgba(0, 0, 0, 0.6); }
 
 .web-window-address {
   display: flex;
