@@ -14,9 +14,12 @@ type Listener = (status: SimStatus, detail?: string) => void;
  * across mount/unmount and just re-parent the host instead of rebooting the
  * guest.
  *
- * Everything is shown in one terminal: the guest is booted with
- * `console=ttyS0`, so the kernel boot log and the shell share the serial
- * stream that xterm renders.
+ * Console routing: this guest kernel has **no serial console support**
+ * (`/proc/consoles` only lists `tty0`), so the kernel boot log never reaches
+ * ttyS0 — it goes to the VGA text console. To show the boot process live, a
+ * hidden VGA screen container is attached to v86 and its text rows are
+ * streamed line by line into the terminal; the serial port remains the
+ * interactive shell.
  */
 let host: HTMLElement | null = null;
 let boot: Promise<SimVm> | null = null;
@@ -40,43 +43,89 @@ function buildHost(): HTMLElement {
   return element;
 }
 
+/** Hidden VGA container in v86's expected shape (rows div + canvas). */
+function buildVgaContainer(): HTMLElement {
+  const container = document.createElement("div");
+  container.className = "sim-vga";
+  const rows = document.createElement("div");
+  rows.style.whiteSpace = "pre";
+  rows.style.font = "14px monospace";
+  rows.style.lineHeight = "14px";
+  const canvas = document.createElement("canvas");
+  canvas.style.display = "none";
+  container.append(rows, canvas);
+  document.body.appendChild(container);
+  return container;
+}
+
+/** Read the VGA text rows (trailing whitespace stripped). */
+function readVgaRows(container: HTMLElement): string[] {
+  const rows = container.querySelector("div");
+  if (!rows) return [];
+  return Array.from(rows.children).map((el) => (el.textContent ?? "").replace(/\s+$/, ""));
+}
+
+/**
+ * Lines that appeared since the previous snapshot. A console screen scrolls,
+ * so we match the tail of the previous screen against the head of the current
+ * one and treat the remainder as new output.
+ */
+function newVgaLines(previous: string[], current: string[]): string[] {
+  const maxOverlap = Math.min(previous.length, current.length);
+  let overlap = 0;
+  for (let candidate = maxOverlap; candidate > 0; candidate--) {
+    let matches = true;
+    for (let i = 0; i < candidate; i++) {
+      if (previous[previous.length - candidate + i] !== current[i]) {
+        matches = false;
+        break;
+      }
+    }
+    if (matches) {
+      overlap = candidate;
+      break;
+    }
+  }
+  return current.slice(overlap);
+}
+
 async function ensureBoot(): Promise<SimVm> {
   if (boot) return boot;
 
   host = buildHost();
+  const vga = buildVgaContainer();
   emit("loading");
 
   boot = (async () => {
-    // EXPERIMENT: the stock kernel we booted first has no PCI/NIC support, so
-    // to validate host->guest networking we boot v86's upstream buildroot
-    // image (modern kernel, virtio NIC) with the in-browser "fetch" backend.
-    const vm = await createSimVm({}, {
+    // The stock kernel we started with has no PCI/NIC support, so host<->guest
+    // networking needs v86's upstream buildroot image (modern kernel, virtio
+    // NIC) with the in-browser "fetch" backend.
+    const vm = await createSimVm({ screen: vga }, {
       autostart: true,
       boot: {
         mode: "bzimage",
         bzImage: "/sim/buildroot-bzimage68.bin",
-        cmdline: "console=ttyS0,115200 loglevel=7 tsc=reliable mitigations=off random.trust_cpu=on",
+        cmdline: "console=ttyS0,115200 console=tty0 loglevel=7 tsc=reliable mitigations=off random.trust_cpu=on",
       },
       network: { type: "virtio", relayUrl: "fetch" },
     });
+    const emulator = vm.emulator;
 
     // Debug/proxy hook: exposes v86's networking (tcp_probe/connect) to the
     // host page and devtools — the basis for a guest-service proxy.
     if (typeof window !== "undefined") {
-      (window as unknown as { __lamSim?: unknown }).__lamSim = vm.emulator;
+      (window as unknown as { __lamSim?: unknown }).__lamSim = emulator;
     }
-    const emulator = vm.emulator;
 
-    // Grab serial output *immediately*. The guest starts booting as soon as
-    // the emulator is ready, while the terminal library still has to load —
-    // anything that arrives before the terminal exists is buffered and
-    // replayed, otherwise the kernel boot log is lost.
+    // Grab serial output immediately and buffer it: the guest starts booting
+    // as soon as the emulator is ready, while the terminal library still has
+    // to load.
     let terminalWrite: ((text: string) => void) | null = null;
     const buffered: number[] = [];
     let tail = "";
     let loggedIn = false;
+    let mirror: ReturnType<typeof setInterval> | null = null;
 
-    // Raw serial capture for diagnostics (unaffected by terminal clearing).
     const rawLog: string[] = [];
     if (typeof window !== "undefined") {
       (window as unknown as { __lamSerialLog?: string[] }).__lamSerialLog = rawLog;
@@ -89,18 +138,19 @@ async function ensureBoot(): Promise<SimVm> {
       rawLog.push(char);
       if (rawLog.length > 400000) rawLog.splice(0, 200000);
 
-      tail = (tail + char).slice(-200);
+      tail = (tail + char).slice(-400);
       if (!loggedIn && tail.endsWith("login: ")) {
         emulator.serial0_send("root\n");
         loggedIn = true;
         return;
       }
+      // The serial shell is interactive once it prints its prompt.
       if (!announcedReady && /(\/root%|~%)\s*$/.test(tail)) {
         announcedReady = true;
-        // This image never forwards the kernel log to the serial console
-        // (console=ttyS0 is accepted but produces no boot output), so surface
-        // it explicitly once the shell is up.
-        emulator.serial0_send("dmesg\n");
+        if (mirror !== null) {
+          clearInterval(mirror);
+          mirror = null;
+        }
         readyCallback?.();
       }
     });
@@ -147,12 +197,31 @@ async function ensureBoot(): Promise<SimVm> {
 
     terminal.onData((data) => emulator.serial0_send(data));
 
+    if (typeof window !== "undefined") {
+      (window as unknown as { __lamTerm?: unknown }).__lamTerm = terminal;
+    }
+
     // Replay everything captured during boot, then stream live.
     if (buffered.length > 0) {
       terminal.write(new TextDecoder().decode(new Uint8Array(buffered)));
       buffered.length = 0;
     }
     terminalWrite = (text) => terminal.write(text);
+
+    // Stream the VGA console (where the kernel logs) into the terminal, line
+    // by line, until the interactive shell on serial is ready.
+    let previousRows: string[] = [];
+    mirror = setInterval(() => {
+      const rows = readVgaRows(vga);
+      const added = newVgaLines(previousRows, rows);
+      previousRows = rows;
+      // The last row may still be mid-write; hold it back until the console
+      // moves on, so lines are emitted exactly once and complete.
+      const ready = added.slice(0, -1);
+      let end = ready.length;
+      while (end > 0 && ready[end - 1] === "") end--;
+      if (end > 0) terminal.write(ready.slice(0, end).map((line) => line + "\r\n").join(""));
+    }, 120);
 
     return vm;
   })();
