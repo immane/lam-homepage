@@ -4,7 +4,7 @@ import { useCallback, useEffect, useId, useRef, useState, memo, useMemo, Childre
 import { createPortal } from "react-dom";
 import { X } from "lucide-react";
 import { CodePreview } from "@/components/code-preview";
-import { lockBodyScroll } from "@/lib/body-scroll-lock";
+import { acquireBodyLock, releaseBodyLock } from "@/lib/body-scroll-lock";
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
 import rehypeRaw from "rehype-raw";
@@ -118,10 +118,8 @@ const ImageLightbox = memo(function ImageLightbox({ src, alt, onClose }: { src: 
       if (event.key === "Escape") onClose();
     };
     document.addEventListener("keydown", onKeyDown);
-    const unlock = lockBodyScroll();
     return () => {
       document.removeEventListener("keydown", onKeyDown);
-      unlock();
     };
   }, [onClose]);
 
@@ -254,6 +252,19 @@ export const MarkdownPreview = memo(function MarkdownPreview({ content, owner, r
 
   const [lightbox, setLightbox] = useState<{ src: string; alt: string } | null>(null);
   const closeLightbox = useCallback(() => setLightbox(null), []);
+
+  // Scroll lock lives on this persistent parent (not inside the lightbox) so
+  // closing paths that skip the portal's unmount cleanup still converge:
+  // every run sheds first, then re-acquires only while open.
+  useEffect(() => {
+    const key = "markdown-lightbox";
+    releaseBodyLock(key);
+    if (!lightbox) return;
+    acquireBodyLock(key);
+    return () => {
+      releaseBodyLock(key);
+    };
+  }, [lightbox]);
   return (
     <div className="markdown-preview" style={{ contentVisibility: "auto", containIntrinsicSize: "600px 400px" } as React.CSSProperties}>
       <ReactMarkdown

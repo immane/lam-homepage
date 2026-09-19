@@ -8,7 +8,7 @@ import { TypingText } from "@/components/typing-text";
 import { ProjectCard } from "@/components/project-card";
 import { TechStack } from "@/components/tech-stack";
 import { WebWindow } from "@/components/web-window";
-import { lockBodyScroll } from "@/lib/body-scroll-lock";
+import { acquireBodyLock, releaseBodyLock } from "@/lib/body-scroll-lock";
 import { cn } from "@/lib/utils";
 
 interface GitHubData {
@@ -151,12 +151,19 @@ export default function HomePage() {
   // Body scroll lock: only while a window is active (visible and focused).
   // When no window is active (deactivated, minimized, or closed), the home
   // page underneath stays scrollable.
+  // Shed-then-acquire (instead of save/restore pairing) so a skipped cleanup
+  // can never leave a stale lock behind — state always converges on re-run.
   // This relies on html having visible overflow so the body value propagates
   // to the viewport — do not put overflow-y:scroll back on html/body.
   useEffect(() => {
+    const key = "page-window";
+    releaseBodyLock(key);
     const hasActiveVisible = !!activeId && windows.some((w) => w.id === activeId && !w.minimized);
     if (!hasActiveVisible) return;
-    return lockBodyScroll();
+    acquireBodyLock(key);
+    return () => {
+      releaseBodyLock(key);
+    };
   }, [activeId, windows]);
 
   if (!mounted) {

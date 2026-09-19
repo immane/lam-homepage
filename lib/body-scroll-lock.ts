@@ -1,28 +1,44 @@
 /**
- * Lock body scrolling without causing layout shift.
+ * Global body scroll lock with reference-counted holders.
  *
- * Hiding the scrollbar widens the viewport by the scrollbar width, which
- * shifts page content. `scrollbar-gutter: stable` covers this in supporting
- * browsers, but not everywhere (e.g. older Safari), so measure the actual
- * difference after locking and compensate with padding-right. On overlay
- * scrollbars or with gutter support the delta is 0 and this is a no-op.
+ * Why not simple save/restore pairing? Pairing breaks when effect cleanups
+ * are skipped or run out of order (observed in production: closing a window
+ * while the markdown lightbox was involved left `overflow: hidden` stuck).
+ * Instead every sync point first sheds its own hold and then (re-)acquires
+ * if needed, so state always converges to the truth — missed cleanups and
+ * stale captured values are impossible by construction.
  *
- * Returns an unlock function that restores the previous inline values
- * (safe to nest: inner locks restore the outer lock state, not "").
+ * Hiding the scrollbar widens the viewport by the scrollbar width; measure
+ * the actual difference and compensate with padding-right so content does
+ * not shift. On overlay scrollbars (or where `scrollbar-gutter` applies)
+ * the delta is 0 and this is a no-op.
  */
-export function lockBodyScroll(): () => void {
-  const body = document.body;
-  const prevOverflow = body.style.overflow;
-  const prevPaddingRight = body.style.paddingRight;
+
+const holders = new Set<string>();
+
+function applyLockedStyles() {
   const before = document.documentElement.clientWidth;
-  body.style.overflow = "hidden";
+  document.body.style.overflow = "hidden";
   // Reading clientWidth forces layout, so `delta` is measured post-lock.
   const delta = document.documentElement.clientWidth - before;
   if (delta > 0) {
-    body.style.paddingRight = `${delta}px`;
+    document.body.style.paddingRight = `${delta}px`;
   }
-  return () => {
-    body.style.overflow = prevOverflow;
-    body.style.paddingRight = prevPaddingRight;
-  };
+}
+
+function clearLockedStyles() {
+  document.body.style.overflow = "";
+  document.body.style.paddingRight = "";
+}
+
+export function acquireBodyLock(key: string) {
+  holders.add(key);
+  applyLockedStyles();
+}
+
+export function releaseBodyLock(key: string) {
+  holders.delete(key);
+  if (holders.size === 0) {
+    clearLockedStyles();
+  }
 }
