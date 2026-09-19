@@ -4,6 +4,7 @@ import { useCallback, useEffect, useId, useRef, useState, memo, useMemo, Childre
 import { createPortal } from "react-dom";
 import { X } from "lucide-react";
 import { CodePreview } from "@/components/code-preview";
+import { lockBodyScroll } from "@/lib/body-scroll-lock";
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
 import rehypeRaw from "rehype-raw";
@@ -117,11 +118,10 @@ const ImageLightbox = memo(function ImageLightbox({ src, alt, onClose }: { src: 
       if (event.key === "Escape") onClose();
     };
     document.addEventListener("keydown", onKeyDown);
-    const previousOverflow = document.body.style.overflow;
-    document.body.style.overflow = "hidden";
+    const unlock = lockBodyScroll();
     return () => {
       document.removeEventListener("keydown", onKeyDown);
-      document.body.style.overflow = previousOverflow;
+      unlock();
     };
   }, [onClose]);
 

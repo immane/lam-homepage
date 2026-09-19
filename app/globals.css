@@ -228,7 +228,8 @@ html {
 
 .web-window {
   position: fixed;
-  left: 50%;
+  /* vw 而非 %：fixed 的 % 相对 clientWidth（随滚动条显隐变化），vw 恒定，开关锁时窗口不位移 */
+  left: 50vw;
   top: 50%;
   display: flex;
   width: min(80vw, 1440px);

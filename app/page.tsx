@@ -8,6 +8,7 @@ import { TypingText } from "@/components/typing-text";
 import { ProjectCard } from "@/components/project-card";
 import { TechStack } from "@/components/tech-stack";
 import { WebWindow } from "@/components/web-window";
+import { lockBodyScroll } from "@/lib/body-scroll-lock";
 import { cn } from "@/lib/utils";
 
 interface GitHubData {
@@ -154,10 +155,8 @@ export default function HomePage() {
   // to the viewport — do not put overflow-y:scroll back on html/body.
   useEffect(() => {
     const hasActiveVisible = !!activeId && windows.some((w) => w.id === activeId && !w.minimized);
-    document.body.style.overflow = hasActiveVisible ? "hidden" : "";
-    return () => {
-      document.body.style.overflow = "";
-    };
+    if (!hasActiveVisible) return;
+    return lockBodyScroll();
   }, [activeId, windows]);
 
   if (!mounted) {
