@@ -54,21 +54,31 @@ Tip: Click any `ProjectCard` to open a repository preview in a multi-window laye
 
 ## Project Structure
 
+pnpm monorepo: the Next.js app lives in `apps/web/`; `packages/*` holds the
+in-browser simulator pieces and `linux/` the guest image (see `linux/README.md`).
+
 ```
-app/
-  page.tsx                # Single-page home + multi-window manager (windows/activeId/nextZ)
-  globals.css             # Matrix theme, window/dock/resize/mobile styles
-  layout.tsx
-  api/
-    github/route.ts       # Aggregates user/repos/pinned/stats, 60s cache
-    github/[owner]/[repo]/contents/route.ts # Directory/file preview, 1MB limit, raw redirect
-components/
-  web-window.tsx          # Multi-window: drag (rAF), resize, maximize/minimize, inactive, cascade
-  repository-browser.tsx  # File tree + preview (memo + useCallback)
-  code-preview.tsx        # Prism highlight (memo)
-  markdown-preview.tsx    # Markdown + Mermaid (memo)
-  matrix-rain.tsx         # WebGL rain (throttled on mobile, paused when hidden)
-  glitch-text.tsx / typing-text.tsx / project-card.tsx / tech-stack.tsx
+apps/web/
+  app/
+    page.tsx              # Single-page home + multi-window manager (windows/activeId/nextZ)
+    globals.css           # Matrix theme, window/dock/resize/mobile styles
+    layout.tsx
+    api/
+      github/route.ts     # Aggregates user/repos/pinned/stats, 60s cache
+      github/[owner]/[repo]/contents/route.ts # Directory/file preview, 1MB limit, raw redirect
+  components/
+    web-window.tsx        # Multi-window: drag (rAF), resize, maximize/minimize, inactive, cascade
+    repository-browser.tsx # File tree + preview (memo + useCallback)
+    code-preview.tsx      # Prism highlight (memo)
+    markdown-preview.tsx  # Markdown + Mermaid (memo)
+    matrix-rain.tsx       # WebGL rain (throttled on mobile, paused when hidden)
+    glitch-text.tsx / typing-text.tsx / project-card.tsx / tech-stack.tsx
+packages/
+  sim-vm/                 # v86 boot (BIOS-less), serial<->xterm, VGA
+  sim-bridge/             # postMessage data RPC (host provides token data)
+  sim-relay/              # ws<->tcp thin proxy exposing guest:80
+linux/
+  kernel/ rootfs/ tools/ net/ images/ # minimal i686 guest (see linux/README.md)
 ```
 
 ---
@@ -76,20 +86,19 @@ components/
 ## Quick Start
 
 ```bash
-# 1. Install
-npm install
-# or pnpm install / yarn
+# 1. Install (from the repo root — pnpm workspace)
+pnpm install
 
 # 2. Configure (optional, raises GitHub rate limit)
-echo "GITHUB_TOKEN=ghp_xxx" > .env.local
+echo "GITHUB_TOKEN=ghp_xxx" > apps/web/.env.local
 # Without token, uses public API + HTML scraping with lower rate limit
 
 # 3. Develop
-npm run dev
+pnpm dev            # turbo -> @lam/web
 # http://localhost:3000
 
 # 4. Build
-npm run build && npm run start
+pnpm build && pnpm start
 ```
 
 GitHub Token only needs `public_repo` read permission for GraphQL Pinned and higher REST limits. Without it, `fetchPinnedReposFromHTML` falls back to scraping.
@@ -135,6 +144,12 @@ GitHub Token only needs `public_repo` read permission for GraphQL Pinned and hig
 ---
 
 ## Deployment
+
+> [!IMPORTANT]
+> **Vercel → Root Directory must be set to `apps/web`.**
+> This repository is a pnpm monorepo; the Next.js app lives in `apps/web`.
+> Without this setting Vercel cannot find the app and the build fails.
+> (Project → Settings → General → Root Directory → `apps/web`)
 
 - Import to Vercel for auto-deploy on `main`, or deploy `npm run build` output to any Node 18+ environment.
 - Set `GITHUB_TOKEN` in Vercel Dashboard environment variables.
