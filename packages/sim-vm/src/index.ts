@@ -61,9 +61,24 @@ export interface SimMount {
   serial?: HTMLTextAreaElement | null;
 }
 
+export interface SimNetwork {
+  /**
+   * Emulated NIC. `ne2k` for old guests, `virtio` for modern ones.
+   * @default "ne2k"
+   */
+  type?: "ne2k" | "virtio";
+  /**
+   * Network backend URL. `"fetch"` runs entirely in the browser (no proxy
+   * server); other schemes (`ws://`, `wisp://`) need a relay.
+   */
+  relayUrl: string;
+}
+
 export interface SimOptions {
   assets?: Partial<SimAssets>;
   boot?: SimBootConfig;
+  /** Attach an emulated NIC; omit for a guest with no networking. */
+  network?: SimNetwork;
   /** Guest RAM in bytes. */
   memorySize?: number;
   /** VGA memory in bytes. */
@@ -164,6 +179,12 @@ export async function createSimVm(mount: SimMount = {}, options: SimOptions = {}
 
   if (mount.screen) v86Options.screen = { container: mount.screen };
   if (mount.serial) v86Options.serial_console = { type: "textarea", container: mount.serial };
+  if (options.network) {
+    v86Options.net_device = {
+      type: options.network.type ?? "ne2k",
+      relay_url: options.network.relayUrl,
+    };
+  }
 
   if (boot.mode === "cdrom") {
     // Load synchronously (full download) so static hosts without HTTP Range

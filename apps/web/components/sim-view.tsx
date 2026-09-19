@@ -47,8 +47,72 @@ async function ensureBoot(): Promise<SimVm> {
   emit("loading");
 
   boot = (async () => {
-    const vm = await createSimVm({}, { autostart: true });
+    // EXPERIMENT: the stock kernel we booted first has no PCI/NIC support, so
+    // to validate host->guest networking we boot v86's upstream buildroot
+    // image (modern kernel, virtio NIC) with the in-browser "fetch" backend.
+    const vm = await createSimVm({}, {
+      autostart: true,
+      boot: {
+        mode: "bzimage",
+        bzImage: "/sim/buildroot-bzimage68.bin",
+        cmdline: "console=ttyS0,115200 loglevel=7 tsc=reliable mitigations=off random.trust_cpu=on",
+      },
+      network: { type: "virtio", relayUrl: "fetch" },
+    });
+
+    // Debug/proxy hook: exposes v86's networking (tcp_probe/connect) to the
+    // host page and devtools — the basis for a guest-service proxy.
+    if (typeof window !== "undefined") {
+      (window as unknown as { __lamSim?: unknown }).__lamSim = vm.emulator;
+    }
     const emulator = vm.emulator;
+
+    // Grab serial output *immediately*. The guest starts booting as soon as
+    // the emulator is ready, while the terminal library still has to load —
+    // anything that arrives before the terminal exists is buffered and
+    // replayed, otherwise the kernel boot log is lost.
+    let terminalWrite: ((text: string) => void) | null = null;
+    const buffered: number[] = [];
+    let tail = "";
+    let loggedIn = false;
+
+    // Raw serial capture for diagnostics (unaffected by terminal clearing).
+    const rawLog: string[] = [];
+    if (typeof window !== "undefined") {
+      (window as unknown as { __lamSerialLog?: string[] }).__lamSerialLog = rawLog;
+    }
+
+    emulator.add_listener("serial0-output-byte", (byte) => {
+      const char = String.fromCharCode(byte);
+      if (terminalWrite) terminalWrite(char);
+      else buffered.push(byte);
+      rawLog.push(char);
+      if (rawLog.length > 400000) rawLog.splice(0, 200000);
+
+      tail = (tail + char).slice(-200);
+      if (!loggedIn && tail.endsWith("login: ")) {
+        emulator.serial0_send("root\n");
+        loggedIn = true;
+        return;
+      }
+      if (!announcedReady && /(\/root%|~%)\s*$/.test(tail)) {
+        announcedReady = true;
+        // This image never forwards the kernel log to the serial console
+        // (console=ttyS0 is accepted but produces no boot output), so surface
+        // it explicitly once the shell is up.
+        emulator.serial0_send("dmesg\n");
+        readyCallback?.();
+      }
+    });
+
+    emulator.add_listener("emulator-ready", () => {
+      emit("booting");
+      refit?.();
+    });
+    emulator.add_listener("emulator-started", () => {
+      emit("running");
+      refit?.();
+    });
 
     const [{ Terminal }, { FitAddon }] = await Promise.all([
       import("@xterm/xterm"),
@@ -81,34 +145,14 @@ async function ensureBoot(): Promise<SimVm> {
       }
     }
 
-    // The guest runs a getty on ttyS0; log in as root automatically, then
-    // report readiness once the shell prompt appears.
-    let tail = "";
-    let loggedIn = false;
-    emulator.add_listener("serial0-output-byte", (byte) => {
-      const char = String.fromCharCode(byte);
-      terminal.write(char);
-      tail = (tail + char).slice(-200);
-      if (!loggedIn && tail.endsWith("login: ")) {
-        emulator.serial0_send("root\n");
-        loggedIn = true;
-        return;
-      }
-      if (loggedIn && !announcedReady && /\/root%\s*$/.test(tail)) {
-        announcedReady = true;
-        readyCallback?.();
-      }
-    });
     terminal.onData((data) => emulator.serial0_send(data));
 
-    emulator.add_listener("emulator-ready", () => {
-      emit("booting");
-      refit?.();
-    });
-    emulator.add_listener("emulator-started", () => {
-      emit("running");
-      refit?.();
-    });
+    // Replay everything captured during boot, then stream live.
+    if (buffered.length > 0) {
+      terminal.write(new TextDecoder().decode(new Uint8Array(buffered)));
+      buffered.length = 0;
+    }
+    terminalWrite = (text) => terminal.write(text);
 
     return vm;
   })();
