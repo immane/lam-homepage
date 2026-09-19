@@ -484,7 +484,7 @@ html {
 .markdown-preview h1, .markdown-preview h2, .markdown-preview h3, .markdown-preview h4 { margin: 1.8em 0 0.7em; color: var(--matrix-green-bright); font-family: var(--font-mono); line-height: 1.25; text-shadow: 0 0 14px color-mix(in oklch, var(--primary) 40%, transparent); }
 .markdown-preview h1 { padding-bottom: 0.45em; border-bottom: 1px solid color-mix(in oklch, var(--primary) 30%, transparent); font-size: 1.9em; }
 .markdown-preview h2 { padding-bottom: 0.35em; border-bottom: 1px solid color-mix(in oklch, var(--primary) 18%, transparent); font-size: 1.45em; }
-.markdown-preview p, .markdown-preview ul, .markdown-preview ol, .markdown-preview blockquote, .markdown-preview table { margin: 0 0 1em; }
+.markdown-preview p, .markdown-preview ul, .markdown-preview ol, .markdown-preview blockquote, .markdown-preview table { margin: 0.5em 0 0.5em; }
 .markdown-preview ul, .markdown-preview ol { padding-left: 1.6em; }
 .markdown-preview a { color: var(--matrix-green-bright); text-decoration: underline; text-underline-offset: 3px; }
 .markdown-preview blockquote { padding: 0.2em 1em; border-left: 3px solid var(--primary); color: var(--muted-foreground); }
@@ -500,7 +500,8 @@ html {
 .markdown-preview table { display: block; max-width: 100%; overflow: auto; border-collapse: collapse; }
 .markdown-preview th, .markdown-preview td { padding: 7px 11px; border: 1px solid color-mix(in oklch, var(--primary) 24%, transparent); text-align: left; }
 .markdown-preview th { background: color-mix(in oklch, var(--primary) 12%, transparent); color: var(--matrix-green-bright); }
-.markdown-preview img { max-width: 100%; height: auto; border: 1px solid color-mix(in oklch, var(--primary) 25%, transparent); border-radius: 5px; }
+.markdown-preview img { max-width: 100%; height: auto; border: 1px solid color-mix(in oklch, var(--primary) 25%, transparent); border-radius: 5px; cursor: zoom-in; }
+.markdown-preview a img { cursor: pointer; }
 .markdown-preview input[type="checkbox"] { margin-right: 0.45em; accent-color: var(--primary); }
 /* Raw HTML inside markdown: align / media / figures */
 .markdown-preview div[align="center"], .markdown-preview p[align="center"], .markdown-preview h1[align="center"], .markdown-preview h2[align="center"], .markdown-preview h3[align="center"], .markdown-preview h4[align="center"], .markdown-preview figure[align="center"] { text-align: center; }
@@ -523,6 +524,12 @@ html {
 .markdown-preview details { margin: 0 0 1em; padding: 0.6em 0.9em; border: 1px solid color-mix(in oklch, var(--primary) 22%, transparent); border-radius: 6px; }
 .markdown-preview summary { cursor: pointer; color: var(--matrix-green-bright); font-family: var(--font-mono); }
 .markdown-preview mark { padding: 0 0.2em; border-radius: 3px; background: color-mix(in oklch, var(--primary) 30%, transparent); color: inherit; }
+
+/* 图片点击放大：z 必须高于窗口（窗口 z 从 210 起每次聚焦 +1，无上限） */
+.markdown-lightbox { position: fixed; inset: 0; z-index: 9999; display: grid; place-items: center; padding: 24px; background: rgba(0, 0, 0, 0.85); cursor: zoom-out; }
+.markdown-lightbox img { max-width: min(92vw, 1200px); max-height: 86vh; border: 1px solid color-mix(in oklch, var(--primary) 35%, transparent); border-radius: 8px; cursor: default; }
+.markdown-lightbox-close { position: fixed; top: 16px; right: 16px; display: grid; place-items: center; width: 36px; height: 36px; border: 1px solid color-mix(in oklch, var(--primary) 35%, transparent); border-radius: 50%; background: color-mix(in oklch, var(--card) 85%, transparent); color: var(--matrix-green-bright); cursor: pointer; }
+.markdown-lightbox-close:hover { background: color-mix(in oklch, var(--primary) 25%, var(--card)); }
 
 .mermaid-diagram { display: grid; min-height: 120px; margin: 1.2em 0; place-items: center; overflow: auto; padding: 18px; border: 1px solid color-mix(in oklch, var(--primary) 30%, transparent); border-radius: 6px; background: color-mix(in oklch, var(--matrix-dark) 84%, var(--card)); color: var(--muted-foreground); font-family: var(--font-mono); }
 .mermaid-diagram svg { min-width: 360px; max-width: 100%; height: auto; }

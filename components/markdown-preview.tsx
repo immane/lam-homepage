@@ -1,6 +1,8 @@
 "use client";
 
-import { useEffect, useId, useRef, useState, memo, useMemo, Children, isValidElement } from "react";
+import { useCallback, useEffect, useId, useRef, useState, memo, useMemo, Children, isValidElement } from "react";
+import { createPortal } from "react-dom";
+import { X } from "lucide-react";
 import { CodePreview } from "@/components/code-preview";
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
@@ -107,6 +109,31 @@ const MermaidDiagram = memo(function MermaidDiagram({ chart }: { chart: string }
 
   if (error) return <p className="mermaid-error">{error}</p>;
   return <div className="mermaid-diagram" ref={containerRef}>Rendering diagram...</div>;
+});
+
+const ImageLightbox = memo(function ImageLightbox({ src, alt, onClose }: { src: string; alt: string; onClose: () => void }) {
+  useEffect(() => {
+    const onKeyDown = (event: KeyboardEvent) => {
+      if (event.key === "Escape") onClose();
+    };
+    document.addEventListener("keydown", onKeyDown);
+    const previousOverflow = document.body.style.overflow;
+    document.body.style.overflow = "hidden";
+    return () => {
+      document.removeEventListener("keydown", onKeyDown);
+      document.body.style.overflow = previousOverflow;
+    };
+  }, [onClose]);
+
+  return createPortal(
+    <div className="markdown-lightbox" role="dialog" aria-modal="true" aria-label={alt || "Image preview"} onClick={onClose}>
+      <img src={src} alt={alt} onClick={(event) => event.stopPropagation()} />
+      <button type="button" className="markdown-lightbox-close" onClick={onClose} aria-label="Close image preview">
+        <X size={18} />
+      </button>
+    </div>,
+    document.body
+  );
 });
 
 export const MarkdownPreview = memo(function MarkdownPreview({ content, owner, repository, path, onNavigate }: MarkdownPreviewProps) {
@@ -224,6 +251,9 @@ export const MarkdownPreview = memo(function MarkdownPreview({ content, owner, r
   const remarkPlugins = useMemo(() => [remarkGfm], []);
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const rehypePlugins = useMemo(() => [rehypeRaw, [rehypeSanitize, sanitizeSchema] as any], [sanitizeSchema]);
+
+  const [lightbox, setLightbox] = useState<{ src: string; alt: string } | null>(null);
+  const closeLightbox = useCallback(() => setLightbox(null), []);
   return (
     <div className="markdown-preview" style={{ contentVisibility: "auto", containIntrinsicSize: "600px 400px" } as React.CSSProperties}>
       <ReactMarkdown
@@ -249,14 +279,21 @@ export const MarkdownPreview = memo(function MarkdownPreview({ content, owner, r
             return <a {...props} href={href} rel="noreferrer" target="_blank">{children}</a>;
           },
           img({ src, srcSet, ...props }) {
+            const resolvedSrc = typeof src === "string" ? resolveAssetUrl(src) : undefined;
+            const alt = typeof props.alt === "string" ? props.alt : "";
             return (
               <img
                 {...props}
-                alt={typeof props.alt === "string" ? props.alt : ""}
-                src={typeof src === "string" ? resolveAssetUrl(src) : undefined}
+                alt={alt}
+                src={resolvedSrc}
                 srcSet={typeof srcSet === "string" ? resolveSrcSet(srcSet) : undefined}
                 loading="lazy"
                 decoding="async"
+                onClick={(event) => {
+                  // 链接中的图片保留跳转行为，不放大
+                  if (event.currentTarget.closest("a")) return;
+                  if (resolvedSrc) setLightbox({ src: resolvedSrc, alt });
+                }}
               />
             );
           },
@@ -327,6 +364,7 @@ export const MarkdownPreview = memo(function MarkdownPreview({ content, owner, r
       >
         {content}
       </ReactMarkdown>
+      {lightbox && <ImageLightbox src={lightbox.src} alt={lightbox.alt} onClose={closeLightbox} />}
     </div>
   );
 });
