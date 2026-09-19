@@ -126,7 +126,6 @@ describe("WebWindow", () => {
       />,
     );
     expect(container.querySelector(".web-window-minimized-dock")).not.toBeNull();
-    expect(screen.getByText(/Restore/)).toBeInTheDocument();
     // mount 时的 useEffect([id]) 会无条件 setIsMinimized(false)，
     // 受控 minimized 下会误触发一次 onRestore，先清掉，只断言点击行为。
     onRestore.mockClear();

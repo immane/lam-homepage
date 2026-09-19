@@ -592,10 +592,11 @@ html {
 .web-window-dock {
   position: fixed;
   z-index: 220;
-  left: 16px;
+  right: 16px;
   bottom: 16px;
   display: flex;
   flex-wrap: wrap;
+  justify-content: flex-end;
   gap: 8px;
   pointer-events: none;
 }
@@ -606,7 +607,7 @@ html {
 .web-window-minimized-dock {
   position: fixed;
   z-index: 210;
-  left: 16px;
+  right: 16px;
   bottom: 16px;
   display: flex;
   align-items: center;
@@ -656,19 +657,18 @@ html {
   box-shadow: 0 0 8px color-mix(in oklch, #febc2e 55%, transparent);
 }
 
+.web-window-minimized-icon {
+  width: 16px;
+  height: 16px;
+  flex: none;
+  color: var(--primary);
+}
+
 .web-window-minimized-title {
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
   color: var(--muted-foreground);
-}
-
-.web-window-minimized-hint {
-  margin-left: auto;
-  padding-left: 12px;
-  color: var(--primary);
-  font-size: 11px;
-  white-space: nowrap;
 }
 
 .web-window-minimized-close {
@@ -759,7 +759,7 @@ html {
   }
   .web-window-toolbar { grid-template-columns: 1fr minmax(0, 3fr) 1fr; padding: 0 12px; }
   .repository-resize-handle { display: none; }
-  .web-window-minimized-dock { left: 8px; right: 8px; bottom: 8px; }
+  .web-window-minimized-dock { left: auto; right: 8px; bottom: 8px; }
   .web-window-minimized-bar { min-width: 0; flex: 1; }
   /* larger hit area for touch resize */
   .web-window-resize-n, .web-window-resize-s { height: 12px; }

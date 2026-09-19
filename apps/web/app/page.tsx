@@ -404,7 +404,7 @@ export default function HomePage() {
 
             {/* Social Links */}
             <div className="flex items-center justify-center gap-4 mb-12">
-              {socialLinks.map((link) => (
+              {socialLinks.filter((link) => link.url !== "#sim").map((link) => (
                 <button
                   key={link.name}
                   type="button"
