@@ -9,6 +9,7 @@ import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
 import rehypeRaw from "rehype-raw";
 import rehypeSanitize, { defaultSchema } from "rehype-sanitize";
+import rehypeSlug from "rehype-slug";
 
 interface MarkdownPreviewProps {
   content: string;
@@ -247,11 +248,51 @@ export const MarkdownPreview = memo(function MarkdownPreview({ content, owner, r
   );
 
   const remarkPlugins = useMemo(() => [remarkGfm], []);
+  // Order matters: raw HTML must be parsed first, slugs generated next so
+  // that sanitize prefixes every id uniformly with `user-content-`.
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const rehypePlugins = useMemo(() => [rehypeRaw, [rehypeSanitize, sanitizeSchema] as any], [sanitizeSchema]);
+  const rehypePlugins = useMemo(() => [rehypeRaw, rehypeSlug, [rehypeSanitize, sanitizeSchema] as any], [sanitizeSchema]);
 
   const [lightbox, setLightbox] = useState<{ src: string; alt: string } | null>(null);
   const closeLightbox = useCallback(() => setLightbox(null), []);
+  const containerRef = useRef<HTMLDivElement>(null);
+
+  // Same-file `#anchor` links: smooth-scroll inside this preview instead of
+  // a native hash jump (which would scroll the whole page to nowhere —
+  // headings carry sanitized `user-content-` prefixed ids).
+  const scrollToAnchor = useCallback((rawFragment: string) => {
+    const root = containerRef.current;
+    if (!root) return;
+    let fragment = rawFragment;
+    try {
+      fragment = decodeURIComponent(rawFragment);
+    } catch {
+      // keep raw fragment on malformed sequences
+    }
+    if (!fragment) {
+      root.closest(".repository-preview")?.scrollTo({ top: 0, behavior: "smooth" });
+      return;
+    }
+    const candidates = [`user-content-${fragment}`, fragment];
+    for (const id of candidates) {
+      const byId = root.querySelector(`#${CSS.escape(id)}`);
+      if (byId) {
+        byId.scrollIntoView({ behavior: "smooth", block: "start" });
+        return;
+      }
+      const byName = root.querySelector(`a[name="${CSS.escape(id)}"]`);
+      if (byName) {
+        byName.scrollIntoView({ behavior: "smooth", block: "start" });
+        return;
+      }
+    }
+    // Tolerate case differences between TOC links and slugs.
+    const lowered = fragment.toLowerCase();
+    const fallback = [...root.querySelectorAll("[id]")].find(
+      (el) => el.id.toLowerCase() === `user-content-${lowered}` || el.id.toLowerCase() === lowered
+    );
+    fallback?.scrollIntoView({ behavior: "smooth", block: "start" });
+  }, []);
 
   // Scroll lock lives on this persistent parent (not inside the lightbox) so
   // closing paths that skip the portal's unmount cleanup still converge:
@@ -266,12 +307,26 @@ export const MarkdownPreview = memo(function MarkdownPreview({ content, owner, r
     };
   }, [lightbox]);
   return (
-    <div className="markdown-preview" style={{ contentVisibility: "auto", containIntrinsicSize: "600px 400px" } as React.CSSProperties}>
+    <div ref={containerRef} className="markdown-preview" style={{ contentVisibility: "auto", containIntrinsicSize: "600px 400px" } as React.CSSProperties}>
       <ReactMarkdown
         components={{
           a({ href, children, ...props }) {
+            if (href?.startsWith("#")) {
+              return (
+                <a
+                  {...props}
+                  href={href}
+                  onClick={(event) => {
+                    event.preventDefault();
+                    scrollToAnchor(href.slice(1));
+                  }}
+                >
+                  {children}
+                </a>
+              );
+            }
             const githubPath = href ? githubRepositoryPath(href, owner, repository) : null;
-            if (href && (!isExternalUrl(href) || githubPath) && !href.startsWith("#")) {
+            if (href && (!isExternalUrl(href) || githubPath)) {
               const targetPath = githubPath || resolveRepositoryPath(href, path);
               return (
                 <a
@@ -286,7 +341,6 @@ export const MarkdownPreview = memo(function MarkdownPreview({ content, owner, r
                 </a>
               );
             }
-            if (href?.startsWith("#")) return <a {...props} href={href}>{children}</a>;
             return <a {...props} href={href} rel="noreferrer" target="_blank">{children}</a>;
           },
           img({ src, srcSet, ...props }) {

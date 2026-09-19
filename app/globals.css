@@ -482,7 +482,8 @@ html {
 .markdown-preview { padding: 20px; color: var(--foreground); font-family: var(--font-sans); line-height: 1.7; }
 .markdown-preview > :first-child { margin-top: 0; }
 .markdown-preview > :last-child { margin-bottom: 0; }
-.markdown-preview h1, .markdown-preview h2, .markdown-preview h3, .markdown-preview h4 { margin: 1.8em 0 0.7em; color: var(--matrix-green-bright); font-family: var(--font-mono); line-height: 1.25; text-shadow: 0 0 14px color-mix(in oklch, var(--primary) 40%, transparent); }
+.markdown-preview h1, .markdown-preview h2, .markdown-preview h3, .markdown-preview h4 { margin: 1.8em 0 0.7em; color: var(--matrix-green-bright); font-family: var(--font-mono); line-height: 1.25; text-shadow: 0 0 14px color-mix(in oklch, var(--primary) 40%, transparent); scroll-margin-top: 53px; }
+.markdown-preview h5, .markdown-preview h6 { scroll-margin-top: 53px; }
 .markdown-preview h1 { padding-bottom: 0.45em; border-bottom: 1px solid color-mix(in oklch, var(--primary) 30%, transparent); font-size: 1.9em; }
 .markdown-preview h2 { padding-bottom: 0.35em; border-bottom: 1px solid color-mix(in oklch, var(--primary) 18%, transparent); font-size: 1.45em; }
 .markdown-preview p, .markdown-preview ul, .markdown-preview ol, .markdown-preview blockquote, .markdown-preview table { margin: 0.5em 0 0.5em; }
