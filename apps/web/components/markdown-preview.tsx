@@ -4,7 +4,7 @@ import { useCallback, useEffect, useId, useRef, useState, memo, useMemo, Childre
 import { createPortal } from "react-dom";
 import { X } from "lucide-react";
 import { CodePreview } from "@/components/code-preview";
-import { acquireBodyLock, releaseBodyLock } from "@/lib/body-scroll-lock";
+import { acquireBodyLock, releaseBodyLock } from "@lam/desktop";
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
 import rehypeRaw from "rehype-raw";

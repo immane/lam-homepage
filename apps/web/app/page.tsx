@@ -2,13 +2,20 @@
 
 import { useState, useEffect, useRef } from "react";
 import useSWR from "swr";
+import {
+  WebWindow,
+  useWindowManager,
+  acquireBodyLock,
+  releaseBodyLock,
+  type WindowDescriptor,
+} from "@lam/desktop";
 import { MatrixRain } from "@/components/matrix-rain";
 import { GlitchText } from "@/components/glitch-text";
 import { TypingText } from "@/components/typing-text";
 import { ProjectCard } from "@/components/project-card";
 import { TechStack } from "@/components/tech-stack";
-import { WebWindow } from "@/components/web-window";
-import { acquireBodyLock, releaseBodyLock } from "@/lib/body-scroll-lock";
+import { RepositoryBrowser } from "@/components/repository-browser";
+import { SimView } from "@/components/sim-view";
 import { cn } from "@/lib/utils";
 
 interface GitHubData {
@@ -78,25 +85,6 @@ const socialLinks = [
       </svg>
     ),
   },
-  {
-    name: "Linux Sim",
-    url: "#sim",
-    icon: (
-      <svg
-        className="w-5 h-5"
-        fill="none"
-        stroke="currentColor"
-        viewBox="0 0 24 24"
-      >
-        <path
-          strokeLinecap="round"
-          strokeLinejoin="round"
-          strokeWidth={2}
-          d="M8 9l3 3-3 3m5 0h3M5 20h14a2 2 0 002-2V6a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z"
-        />
-      </svg>
-    ),
-  },
 ];
 
 function LoadingState() {
@@ -135,23 +123,138 @@ function SkeletonCard() {
   );
 }
 
-type WindowEntry = {
-  id: string;
-  kind: "repo" | "url" | "sim" | "guest";
-  url: string;
+/**
+ * Host-owned payload for each window. `@lam/desktop` treats this as opaque;
+ * the page decides how a window's `kind` maps to content, chrome and links.
+ */
+type WindowMeta =
+  | { repository: { owner: string; name: string }; url: string; homepage: string | null }
+  | { url: string }
+  | { url?: undefined };
+
+const SIM_LABEL = "Linux Shell";
+const GUEST_LABEL = "guest-http";
+
+/** The real URL a window points at, if any (repo/url kinds only). */
+function windowUrl(w: WindowDescriptor<WindowMeta>): string | undefined {
+  const meta = w.meta as { url?: string } | undefined;
+  return meta?.url;
+}
+
+function TerminalGlyph() {
+  return (
+    <svg
+      className="web-window-minimized-icon"
+      aria-hidden
+      fill="none"
+      stroke="currentColor"
+      viewBox="0 0 24 24"
+    >
+      <path
+        strokeLinecap="round"
+        strokeLinejoin="round"
+        strokeWidth={2}
+        d="M8 9l3 3-3 3m5 0h3M5 20h14a2 2 0 002-2V6a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z"
+      />
+    </svg>
+  );
+}
+
+/** Toolbar links for repo/url windows — host-owned, framework-agnostic. */
+function WindowActions({
+  repository,
+  homepage,
+  url,
+  label,
+  onOpenUrl,
+}: {
   repository: { owner: string; name: string } | null;
   homepage: string | null;
-  z: number;
-  minimized: boolean;
-  initialOffset: { x: number; y: number };
-};
+  url: string | null;
+  label: string;
+  onOpenUrl: (url: string) => void;
+}) {
+  return (
+    <>
+      {repository && homepage ? (
+        <button
+          aria-label={`Open website for ${label}`}
+          className="web-window-external-link"
+          type="button"
+          title={homepage}
+          onClick={(e) => {
+            e.stopPropagation();
+            onOpenUrl(homepage);
+          }}
+          onPointerDown={(e) => e.stopPropagation()}
+        >
+          <svg aria-hidden="true" fill="none" viewBox="0 0 24 24">
+            <path
+              d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 00-2-2v-4M14 4h6m0 0v6m0-6L10 14"
+              stroke="currentColor"
+              strokeLinecap="round"
+              strokeLinejoin="round"
+              strokeWidth="2"
+            />
+          </svg>
+        </button>
+      ) : !repository && url ? (
+        <a
+          aria-label={`Open ${label} in new tab`}
+          className="web-window-external-link"
+          href={url}
+          rel="noreferrer"
+          target="_blank"
+          onPointerDown={(e) => e.stopPropagation()}
+        >
+          <svg aria-hidden="true" fill="none" viewBox="0 0 24 24">
+            <path
+              d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 00-2-2v-4M14 4h6m0 0v6m0-6L10 14"
+              stroke="currentColor"
+              strokeLinecap="round"
+              strokeLinejoin="round"
+              strokeWidth="2"
+            />
+          </svg>
+        </a>
+      ) : null}
+      {repository && url ? (
+        <a
+          aria-label={`Open ${label} on GitHub`}
+          className="web-window-external-link"
+          href={url}
+          rel="noreferrer"
+          target="_blank"
+          title={url}
+          onPointerDown={(e) => e.stopPropagation()}
+        >
+          <svg aria-hidden="true" fill="currentColor" viewBox="0 0 24 24">
+            <path
+              fillRule="evenodd"
+              d="M12 2C6.477 2 2 6.484 2 12.017c0 4.425 2.865 8.18 6.839 9.504.5.092.682-.217.682-.483 0-.237-.008-.868-.013-1.703-2.782.605-3.369-1.343-3.369-1.343-.454-1.158-1.11-1.466-1.11-1.466-.908-.62.069-.608.069-.608 1.003.07 1.531 1.032 1.531 1.032.892 1.53 2.341 1.088 2.91.832.092-.647.35-1.088.636-1.338-2.22-.253-4.555-1.113-4.555-4.951 0-1.093.39-1.988 1.029-2.688-.103-.253-.446-1.272.098-2.65 0 0 .84-.27 2.75 1.026A9.564 9.564 0 0112 6.844c.85.004 1.705.115 2.504.337 1.909-1.296 2.747-1.027 2.747-1.027.546 1.379.202 2.398.1 2.651.64.7 1.028 1.595 1.028 2.688 0 3.848-2.339 4.695-4.566 4.943.359.309.678.92.678 1.855 0 1.338-.012 2.419-.012 2.747 0 .268.18.58.688.482A10.019 10.019 0 0022 12.017C22 6.484 17.522 2 12 2z"
+              clipRule="evenodd"
+            />
+          </svg>
+        </a>
+      ) : null}
+    </>
+  );
+}
 
 export default function HomePage() {
   const [mounted, setMounted] = useState(false);
   const [showContent, setShowContent] = useState(false);
-  const [windows, setWindows] = useState<WindowEntry[]>([]);
-  const [activeId, setActiveId] = useState<string | null>(null);
-  const [nextZ, setNextZ] = useState(210);
+  const {
+    windows,
+    activeId,
+    open,
+    openOrFocus,
+    close,
+    focus,
+    minimize,
+    restore,
+    deactivateAll,
+  } = useWindowManager<WindowMeta>();
   const simIdRef = useRef<string | null>(null);
   const simAutoOpened = useRef(false);
   const guestAutoOpened = useRef(false);
@@ -227,41 +330,37 @@ export default function HomePage() {
       repository = null;
     }
     const normalizedHomepage = repository ? normalizeHomepage(homepage) : null;
-    // If same url already open, focus it instead of duplicating
-    const existing = windows.find((w) => w.url === url);
-    if (existing) {
-      setWindows((ws) => ws.map((w) => (w.id === existing.id ? { ...w, minimized: false, z: nextZ } : w)));
-      setActiveId(existing.id);
-      setNextZ((z) => z + 1);
-      return;
+
+    let hostLabel = url;
+    try {
+      hostLabel = new URL(normalizeHomepage(url) || url).hostname.replace(/^www\./, "");
+    } catch {
+      hostLabel = url;
     }
-    const id = `win-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`;
-    const stagger = windows.length % 6;
-    const initialOffset = { x: stagger * 32, y: stagger * 28 };
-    setWindows((ws) => [...ws, { id, kind: repository ? "repo" : "url", url, repository, homepage: normalizedHomepage, z: nextZ, minimized: false, initialOffset }]);
-    setActiveId(id);
-    setNextZ((z) => z + 1);
+    const label = repository ? `${repository.owner}/${repository.name}` : hostLabel;
+
+    // Same url already open -> focus it instead of duplicating.
+    openOrFocus(
+      (w) => windowUrl(w) === url,
+      {
+        kind: repository ? "repo" : "url",
+        label,
+        address: `~/projects/${label}`,
+        meta: repository
+          ? { repository, url, homepage: normalizedHomepage }
+          : { url },
+      },
+    );
   };
 
   const openSim = () => {
-    const existing = windows.find((w) => w.kind === "sim");
-    if (existing) {
-      simIdRef.current = existing.id;
-      setWindows((ws) => ws.map((w) => (w.id === existing.id ? { ...w, minimized: false, z: nextZ } : w)));
-      setActiveId(existing.id);
-      setNextZ((z) => z + 1);
-      return;
-    }
-    const id = `win-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`;
-    simIdRef.current = id;
-    const stagger = windows.length % 6;
-    const initialOffset = { x: stagger * 32, y: stagger * 28 };
-    setWindows((ws) => [
-      ...ws,
-      { id, kind: "sim", url: "linux-sim", repository: null, homepage: null, z: nextZ, minimized: false, initialOffset },
-    ]);
-    setActiveId(id);
-    setNextZ((z) => z + 1);
+    simIdRef.current = openOrFocus((w) => w.kind === "sim", {
+      kind: "sim",
+      label: SIM_LABEL,
+      address: "~/sim",
+      closable: false,
+      meta: {},
+    });
   };
 
   // The simulator boots on page load; once its shell is ready it steps out of
@@ -269,60 +368,23 @@ export default function HomePage() {
   const handleSimReady = () => {
     const id = simIdRef.current;
     if (!id) return;
-    setWindows((ws) => ws.map((w) => (w.id === id ? { ...w, minimized: true } : w)));
-    setActiveId((cur) => (cur === id ? null : cur));
+    minimize(id);
   };
 
   // Once the guest is serving HTTP through the proxy, show the page it serves.
-  const openGuest = () => {
-    const existing = windows.find((w) => w.kind === "guest");
-    if (existing) {
-      setWindows((ws) => ws.map((w) => (w.id === existing.id ? { ...w, minimized: false, z: nextZ } : w)));
-      setActiveId(existing.id);
-      setNextZ((z) => z + 1);
-      return;
-    }
-    const id = `win-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`;
-    const stagger = windows.length % 6;
-    const initialOffset = { x: stagger * 32, y: stagger * 28 };
-    setWindows((ws) => [
-      ...ws,
-      { id, kind: "guest", url: "guest-http", repository: null, homepage: null, z: nextZ, minimized: false, initialOffset },
-    ]);
-    setActiveId(id);
-    setNextZ((z) => z + 1);
-  };
+  const openGuest = () =>
+    openOrFocus((w) => w.kind === "guest", {
+      kind: "guest",
+      label: GUEST_LABEL,
+      address: "~/guest",
+      meta: {},
+    });
 
   const handleSimServed = () => {
     if (guestAutoOpened.current) return;
     guestAutoOpened.current = true;
     openGuest();
   };
-
-  const closeWindow = (id?: string) => {
-    if (!id) return;
-    setWindows((ws) => ws.filter((w) => w.id !== id));
-    setActiveId((cur) => (cur === id ? null : cur));
-  };
-
-  const focusWindow = (id: string) => {
-    setActiveId(id);
-    setWindows((ws) => ws.map((w) => (w.id === id ? { ...w, minimized: false, z: nextZ } : w)));
-    setNextZ((z) => z + 1);
-  };
-
-  const minimizeWindow = (id: string) => {
-    setWindows((ws) => ws.map((w) => (w.id === id ? { ...w, minimized: true } : w)));
-    setActiveId((cur) => (cur === id ? null : cur));
-  };
-
-  const restoreWindow = (id: string) => {
-    setWindows((ws) => ws.map((w) => (w.id === id ? { ...w, minimized: false, z: nextZ } : w)));
-    setActiveId(id);
-    setNextZ((z) => z + 1);
-  };
-
-  const deactivateAll = () => setActiveId(null);
 
   const scrollToTechStack = () => {
     document.getElementById("tech-stack")?.scrollIntoView({ behavior: "smooth" });
@@ -404,15 +466,13 @@ export default function HomePage() {
 
             {/* Social Links */}
             <div className="flex items-center justify-center gap-4 mb-12">
-              {socialLinks.filter((link) => link.url !== "#sim").map((link) => (
+              {socialLinks.map((link) => (
                 <button
                   key={link.name}
                   type="button"
                   onClick={() => {
                     if (link.url === "#tech-stack") {
                       scrollToTechStack();
-                    } else if (link.url === "#sim") {
-                      openSim();
                     } else if (link.url.startsWith("mailto:")) {
                       window.location.href = link.url;
                     } else {
@@ -690,29 +750,74 @@ export default function HomePage() {
           />
         </div>
       )}
-      {windows.map((w, idx) => {
+      {windows.map((w) => {
         const minimizedIdx = windows.filter((x) => x.minimized).findIndex((x) => x.id === w.id);
+        const meta = w.meta as {
+          repository?: { owner: string; name: string };
+          url?: string;
+          homepage?: string | null;
+        };
+        const isSim = w.kind === "sim";
         return (
           <WebWindow
             key={w.id}
             id={w.id}
-            kind={w.kind}
-            url={w.url}
-            repository={w.repository}
-            homepage={w.homepage}
+            label={w.label}
+            address={w.address}
+            icon={isSim ? <TerminalGlyph /> : undefined}
+            actions={
+              isSim || w.kind === "guest" ? undefined : (
+                <WindowActions
+                  repository={meta.repository ?? null}
+                  homepage={meta.homepage ?? null}
+                  url={meta.url ?? null}
+                  label={w.label}
+                  onOpenUrl={openPreview}
+                />
+              )
+            }
             active={activeId === w.id}
             zIndex={w.z}
-            onClose={closeWindow}
-            onFocus={focusWindow}
-            onOpenUrl={openPreview}
+            onClose={close}
+            onFocus={focus}
             dockIndex={w.minimized ? minimizedIdx : undefined}
             minimized={w.minimized}
-            onMinimize={minimizeWindow}
-            onRestore={restoreWindow}
+            onMinimize={minimize}
+            onRestore={restore}
             initialOffset={w.initialOffset}
-            closable={w.kind !== "sim"}
-            onSimReady={w.kind === "sim" ? handleSimReady : undefined}
-            onSimServed={w.kind === "sim" ? handleSimServed : undefined}
+            closable={w.closable ?? true}
+            renderContent={() => {
+              switch (w.kind) {
+                case "repo": {
+                  const repo = meta.repository;
+                  return repo ? (
+                    <RepositoryBrowser owner={repo.owner} repository={repo.name} />
+                  ) : null;
+                }
+                case "url":
+                  return meta.url ? (
+                    <iframe
+                      className="web-window-frame"
+                      src={meta.url}
+                      title={w.label}
+                      loading="lazy"
+                    />
+                  ) : null;
+                case "sim":
+                  return <SimView onReady={handleSimReady} onServed={handleSimServed} />;
+                case "guest":
+                  return (
+                    <iframe
+                      className="web-window-frame"
+                      src="/guest/"
+                      title="guest httpd"
+                      loading="lazy"
+                    />
+                  );
+                default:
+                  return null;
+              }
+            }}
           />
         );
       })}

@@ -194,7 +194,7 @@ export const RepositoryBrowser = memo(function RepositoryBrowser({ owner, reposi
           </Panel>
           <PanelResizeHandle className="repository-resize-handle" />
           <Panel minSize={55}>
-            <article className="repository-preview">
+            <article className="repository-preview" data-window-scroll>
               {file ? (
                 <>
                   <header>{file.entry.path}</header>
