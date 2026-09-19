@@ -10,15 +10,17 @@ type Listener = (status: SimStatus, detail?: string) => void;
 /**
  * The emulator is a module-level singleton whose DOM lives in a detached
  * "host" element. Windows can be minimized (which unmounts their content) and
- * restored; v86 binds its screen adapter to the DOM nodes, so we keep those
- * nodes alive across mount/unmount and just re-parent the host instead of
- * rebooting the guest.
+ * restored; the xterm instance is bound to that host, so we keep it alive
+ * across mount/unmount and just re-parent the host instead of rebooting the
+ * guest.
  *
- * A single VGA console (tty0) shows both the kernel boot log and the shell —
- * there is no separate serial terminal.
+ * Everything is shown in one terminal: the guest is booted with
+ * `console=ttyS0`, so the kernel boot log and the shell share the serial
+ * stream that xterm renders.
  */
 let host: HTMLElement | null = null;
 let boot: Promise<SimVm> | null = null;
+let refit: (() => void) | null = null;
 let status: SimStatus = "loading";
 let detail: string | undefined;
 const listeners = new Set<Listener>();
@@ -30,21 +32,9 @@ function emit(next: SimStatus, nextDetail?: string) {
 }
 
 function buildHost(): HTMLElement {
-  // v86 ScreenAdapter expects: firstChild = text div, plus a <canvas>.
-  const screen = document.createElement("div");
-  screen.className = "sim-screen";
-  screen.tabIndex = 0;
-
-  const text = document.createElement("div");
-  text.style.whiteSpace = "pre";
-  text.style.font = "14px monospace";
-  text.style.lineHeight = "14px";
-
-  const canvas = document.createElement("canvas");
-  canvas.style.display = "none";
-
-  screen.append(text, canvas);
-  return screen;
+  const element = document.createElement("div");
+  element.className = "sim-term-host";
+  return element;
 }
 
 async function ensureBoot(): Promise<SimVm> {
@@ -54,9 +44,65 @@ async function ensureBoot(): Promise<SimVm> {
   emit("loading");
 
   boot = (async () => {
-    const vm = await createSimVm({ screen: host }, { autostart: true });
-    vm.emulator.add_listener("emulator-ready", () => emit("booting"));
-    vm.emulator.add_listener("emulator-started", () => emit("running"));
+    const vm = await createSimVm({}, { autostart: true });
+    const emulator = vm.emulator;
+
+    const [{ Terminal }, { FitAddon }] = await Promise.all([
+      import("@xterm/xterm"),
+      import("@xterm/addon-fit"),
+    ]);
+
+    const terminal = new Terminal({
+      convertEol: false,
+      cursorBlink: true,
+      fontSize: 13,
+      fontFamily: "ui-monospace, SFMono-Regular, Menlo, monospace",
+      scrollback: 5000,
+      theme: { background: "#000000", foreground: "#c8ffd4", cursor: "#39d353" },
+    });
+    const fitAddon = new FitAddon();
+    terminal.loadAddon(fitAddon);
+
+    if (host) {
+      terminal.open(host);
+      refit = () => {
+        try {
+          if (host && host.clientWidth > 0 && host.clientHeight > 0) fitAddon.fit();
+        } catch {
+          // ignore fit races while the window is hidden/resized
+        }
+      };
+      refit();
+      if (typeof ResizeObserver !== "undefined") {
+        new ResizeObserver(() => refit?.()).observe(host);
+      }
+    }
+
+    // The guest runs a getty on ttyS0; log in as root automatically.
+    let seen = "";
+    let loggedIn = false;
+    emulator.add_listener("serial0-output-byte", (byte) => {
+      const char = String.fromCharCode(byte);
+      terminal.write(char);
+      if (loggedIn) return;
+      seen += char;
+      if (seen.endsWith("login: ")) {
+        emulator.serial0_send("root\n");
+        loggedIn = true;
+      }
+      if (seen.length > 400) seen = seen.slice(-400);
+    });
+    terminal.onData((data) => emulator.serial0_send(data));
+
+    emulator.add_listener("emulator-ready", () => {
+      emit("booting");
+      refit?.();
+    });
+    emulator.add_listener("emulator-started", () => {
+      emit("running");
+      refit?.();
+    });
+
     return vm;
   })();
 
@@ -84,8 +130,11 @@ export function SimView() {
 
     const node = slot.current;
     if (node && host) node.appendChild(host);
+    refit?.();
+    const raf = requestAnimationFrame(() => refit?.());
 
     return () => {
+      cancelAnimationFrame(raf);
       listeners.delete(listener);
       // Detach (keep alive) so minimize/restore does not reboot the guest.
       if (host && host.parentElement === node) host.remove();
@@ -95,7 +144,7 @@ export function SimView() {
   return (
     <div className="sim-shell">
       {/* The status line would otherwise steal vertical space from the
-          console; once the guest is up the console owns the full window. */}
+          console; once the guest is up the terminal owns the full window. */}
       {current !== "running" && (
         <div className="sim-statusbar">
           <span className="sim-status-dot" data-state={current} aria-hidden />

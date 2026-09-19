@@ -2,11 +2,12 @@
  * @lam/sim-vm — v86 integration layer.
  *
  * Boots a Linux guest in the browser and exposes the pieces the app needs:
- * - a VGA `screen` container (rendered by the caller with v86's expected
- *   structure: a `white-space: pre` div followed by a `<canvas>`),
- * - a serial console bound to a caller-provided element,
- * - a manifest-driven boot config so the placeholder ISO used today can be
- *   swapped for our own `bzImage` + `initramfs` without touching callers.
+ * - a VGA `screen` container (optional; rendered by the caller with v86's
+ *   expected structure: a `white-space: pre` div followed by a `<canvas>`),
+ * - a serial console the caller can drive directly (used for the terminal),
+ * - a manifest-driven boot config: by default a prebuilt `bzImage` + ext2
+ *   ramdisk are booted directly with `console=ttyS0`, so kernel output and the
+ *   shell share one serial stream.
  *
  * Targets (CI-enforced elsewhere): total download <= 10MB, cold boot to
  * first HTTP 200 <= 5s (excluding network transfer time).
@@ -76,9 +77,24 @@ export interface SimVm {
   destroy(): Promise<void>;
 }
 
-/** Placeholder boot target until the custom kernel lands in Phase 2. */
+/**
+ * Default kernel command line.
+ *
+ * `console=ttyS0` sends the kernel boot log to the serial port as well, so a
+ * single terminal shows the whole session (boot + shell). The guest's root
+ * filesystem is an ext2 ramdisk, hence `load_ramdisk=1` / `root=/dev/ram0`.
+ */
+export const DEFAULT_CMDLINE =
+  "root=/dev/ram0 rw load_ramdisk=1 prompt_ramdisk=0 ramdisk_size=8192 console=ttyS0,115200 console=tty0 loglevel=7";
+
+/** Boot a kernel image directly (no BIOS, no CD). */
 export function defaultBootConfig(base: string = DEFAULT_ASSET_BASE_URL): SimBootConfig {
-  return { mode: "cdrom", iso: `${base}/linux.iso` };
+  return {
+    mode: "bzimage",
+    bzImage: `${base}/bzImage`,
+    initrd: `${base}/root.bin`,
+    cmdline: DEFAULT_CMDLINE,
+  };
 }
 
 function resolveAssets(options: SimOptions): SimAssets {

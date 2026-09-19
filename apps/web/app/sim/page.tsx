@@ -9,7 +9,7 @@ export default function SimPage() {
         <h1 className="mb-3 font-mono text-sm tracking-widest text-primary">
           v86 · LINUX GUEST
         </h1>
-        <div className="min-h-0 flex-1 overflow-hidden rounded-lg border border-border">
+        <div className="relative min-h-0 flex-1 overflow-hidden rounded-lg border border-border">
           <SimView />
         </div>
       </div>
