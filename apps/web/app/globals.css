@@ -358,3 +358,7 @@ html {
 .sim-vga { display: none; }
 .sim-term-host .xterm { height: 100%; }
 .sim-term-host .xterm-viewport { background: transparent !important; }
+
+/* Finder preview route shell: full viewport, `dvh` so mobile browser chrome
+   does not clip it (falls back to `vh` where `dvh` is unsupported). */
+.finder-page { height: 100vh; height: 100dvh; padding: 16px; box-sizing: border-box; }

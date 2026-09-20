@@ -16,6 +16,7 @@
   "dependencies": {
     "@hookform/resolvers": "^3.9.1",
     "@lam/desktop": "workspace:*",
+    "@lam/finder": "workspace:*",
     "@lam/sim-vm": "workspace:*",
     "@radix-ui/react-accordion": "1.2.12",
     "@radix-ui/react-alert-dialog": "1.1.15",
