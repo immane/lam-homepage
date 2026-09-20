@@ -3,6 +3,16 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { languageColor, UNKNOWN_LANGUAGE_COLOR } from "./languages";
 
+declare global {
+  interface Window {
+    /**
+     * Set by the guest entry to route "open project" into the host's window
+     * manager over the sim bridge. Absent when the app runs standalone.
+     */
+    __lamOpenProject?: (project: FinderProject) => void;
+  }
+}
+
 /** A GitHub project rendered as a Finder "file". */
 export interface FinderProject {
   name: string;
@@ -171,6 +181,14 @@ export function Finder({
         onOpenProject(project);
         return;
       }
+      const opener = window.__lamOpenProject;
+      if (opener) {
+        opener(project);
+        return;
+      }
+      // Standalone (no host, no shell): opening the repository is the only
+      // meaningful action, but it is a fallback — embedded callers should
+      // provide `onOpenProject` so opening matches the host's windows.
       if (typeof window !== "undefined") window.open(project.url, "_blank", "noreferrer");
     },
     [onOpenProject],

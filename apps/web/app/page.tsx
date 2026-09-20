@@ -309,6 +309,9 @@ export default function HomePage() {
   const simIdRef = useRef<string | null>(null);
   const simAutoOpened = useRef(false);
   const guestAutoOpened = useRef(false);
+  // Kept in a ref so the bridge listener (installed on mount) can call the
+  // handler defined below without hitting its temporal dead zone.
+  const openPreviewRef = useRef<((url: string, homepage?: string | null) => void) | null>(null);
 
   const { data, error, isLoading } = useSWR<GitHubData>(
     "/api/github",
@@ -336,7 +339,25 @@ export default function HomePage() {
   // Answer data requests from the app running inside the guest. This page owns
   // the v86 instance, so it is the only one that can; the GitHub token stays
   // in the host's API routes.
-  useEffect(() => installHostBridge(), []);
+  //
+  // Project opens are handled here too, so double-clicking inside the guest
+  // produces the same preview window as a card in this page.
+  //
+  // The bridge is installed once, on mount, while `openPreview` is defined
+  // further down this component — capturing it directly would read the
+  // binding before it is initialized. Indirection through a ref keeps the
+  // listener stable and always calls the current handler.
+  useEffect(
+    () =>
+      installHostBridge({
+        onOpen: (message) => {
+          if (message.action === "project") {
+            openPreviewRef.current?.(message.url, message.homepage);
+          }
+        },
+      }),
+    [],
+  );
 
   // Body scroll lock: only while a window is active (visible and focused).
   // When no window is active (deactivated, minimized, or closed), the home
@@ -408,6 +429,7 @@ export default function HomePage() {
       },
     );
   };
+  openPreviewRef.current = openPreview;
 
   const openSim = () => {
     simIdRef.current = openOrFocus((w) => w.kind === "sim", {

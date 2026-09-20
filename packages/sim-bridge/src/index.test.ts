@@ -1,10 +1,12 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 import {
+  BRIDGE_OPEN,
   BRIDGE_REQUEST,
   BRIDGE_RESULT,
   buildRequestUrl,
   installHostBridge,
   requestFromHost,
+  requestHostOpen,
   type BridgeRequestMessage,
 } from "./index";
 
@@ -118,6 +120,32 @@ describe("requestFromHost (guest side)", () => {
   });
 });
 
+describe("requestHostOpen (guest side)", () => {
+  function fakeParentChannel() {
+    const sent: unknown[] = [];
+    return {
+      sent,
+      parent: { postMessage: (data: unknown) => sent.push(data) },
+    };
+  }
+
+  it("posts an open intent to the host", () => {
+    const { parent, sent } = fakeParentChannel();
+    stubGuestWindow(parent);
+    requestHostOpen({ action: "project", url: "https://github.com/o/r" });
+    expect(sent).toEqual([
+      { type: BRIDGE_OPEN, action: "project", url: "https://github.com/o/r", homepage: undefined },
+    ]);
+  });
+
+  it("does nothing when not embedded", () => {
+    const { parent, sent } = fakeParentChannel();
+    stubGuestWindow(parent, { embedded: false });
+    requestHostOpen({ action: "project", url: "https://github.com/o/r" });
+    expect(sent).toHaveLength(0);
+  });
+});
+
 describe("installHostBridge (host side)", () => {
   function dispatch(data: unknown, port?: MessagePort, origin = "http://guest") {
     const event = new MessageEvent("message", { data, origin });
@@ -189,6 +217,26 @@ describe("installHostBridge (host side)", () => {
 
     await expect(reply).resolves.toMatchObject({ ok: false, status: 403 });
     expect(fetchMock).not.toHaveBeenCalled();
+    stop();
+  });
+
+  it("routes open intents to onOpen", () => {
+    const onOpen = vi.fn();
+    const stop = installHostBridge({ onOpen });
+    dispatch({ type: BRIDGE_OPEN, action: "project", url: "https://github.com/o/r" });
+
+    expect(onOpen).toHaveBeenCalledWith(
+      expect.objectContaining({ action: "project", url: "https://github.com/o/r" }),
+      expect.anything(),
+    );
+    stop();
+  });
+
+  it("ignores open intents from a disallowed origin", () => {
+    const onOpen = vi.fn();
+    const stop = installHostBridge({ onOpen, allowOrigin: "http://allowed" });
+    dispatch({ type: BRIDGE_OPEN, action: "project", url: "x" }, undefined, "http://denied");
+    expect(onOpen).not.toHaveBeenCalled();
     stop();
   });
 

@@ -5,14 +5,30 @@
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <title>Finder</title>
     <style>
-      :root { color-scheme: dark; }
+      /*
+       * The guest build is served standalone, so it has to define the theme
+       * tokens the host normally provides — otherwise @lam/finder falls back
+       * to its neutral grey defaults and stops matching the window it lives
+       * in. Values mirror the host's Matrix theme (apps/web/app/globals.css).
+       */
+      :root {
+        color-scheme: dark;
+        --background: oklch(0.02 0.005 150);
+        --foreground: oklch(0.9 0.2 145);
+        --card: oklch(0.05 0.015 150);
+        --primary: oklch(0.75 0.24 145);
+        --muted-foreground: oklch(0.6 0.14 145);
+        --border: oklch(0.25 0.08 145);
+        --radius-lg: 0.5rem;
+        --font-mono: ui-monospace, SFMono-Regular, Menlo, monospace;
+      }
       * { box-sizing: border-box; }
       html, body { height: 100%; }
       body {
         margin: 0;
-        background: #050805;
-        color: #7dffa0;
-        font: 14px/1.6 ui-monospace, SFMono-Regular, Menlo, monospace;
+        background: var(--background);
+        color: var(--foreground);
+        font: 14px/1.6 var(--font-mono);
       }
       #root { height: 100dvh; padding: 12px; }
     </style>

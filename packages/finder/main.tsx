@@ -1,8 +1,19 @@
 import { StrictMode } from "react";
 import { createRoot } from "react-dom/client";
-import { requestFromHost } from "@lam/sim-bridge";
+import { requestFromHost, requestHostOpen } from "@lam/sim-bridge";
 import { Finder, type FinderProject } from "./src/finder";
 import "./src/styles.css";
+
+/**
+ * Opening a project must behave like the host's own project cards — a preview
+ * window, not a jump to github.com. The guest cannot do that itself, so hand
+ * the intent to the host; if it never installed the bridge, fall back to
+ * `Finder`'s default (open the repository).
+ */
+window.__lamOpenProject = (project) => {
+  if (window.self === window.top) return; // standalone: no host to ask
+  requestHostOpen({ action: "project", url: project.url, homepage: project.homepage });
+};
 
 /**
  * Standalone entry for the static guest build.

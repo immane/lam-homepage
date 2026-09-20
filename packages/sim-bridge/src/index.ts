@@ -20,6 +20,33 @@
 export const BRIDGE_REQUEST = "lam:bridge";
 export const BRIDGE_RESULT = "lam:bridge:result";
 
+/**
+ * Fire-and-forget host action, as opposed to a data request.
+ *
+ * The guest cannot open a host window itself, so it asks the host to — this
+ * keeps "open a project" behaving identically to a card in the host page
+ * instead of navigating the guest frame to github.com.
+ */
+export const BRIDGE_OPEN = "lam:bridge:open";
+
+export interface BridgeOpenMessage {
+  type: typeof BRIDGE_OPEN;
+  /** Host-defined action; "project" opens the repo preview window. */
+  action: string;
+  url: string;
+  homepage?: string | null;
+}
+
+/** Ask the host to open something in its own UI. Never rejects. */
+export function requestHostOpen(
+  message: Omit<BridgeOpenMessage, "type">,
+  { requireTop = true }: { requireTop?: boolean } = {},
+): void {
+  if (typeof window === "undefined" || (requireTop && window.self === window.top)) return;
+  const payload: BridgeOpenMessage = { type: BRIDGE_OPEN, ...message };
+  window.parent.postMessage(payload, "*");
+}
+
 /** Requests the guest may make, mapped to host API routes. */
 export interface BridgeRoute {
   /** Same-origin path on the host that answers the request. */
@@ -132,6 +159,11 @@ export interface HostBridgeOptions {
   routes?: Record<string, BridgeRoute>;
   /** Restrict which origins may call the bridge. Defaults to any. */
   allowOrigin?: string | ((origin: string) => boolean);
+  /**
+   * Handles `lam:bridge:open` messages, e.g. by running the host's own
+   * "open preview" flow. Omit to ignore them.
+   */
+  onOpen?: (message: BridgeOpenMessage, event: MessageEvent) => void;
 }
 
 function originAllowed(origin: string, allow: HostBridgeOptions["allowOrigin"]): boolean {
@@ -155,8 +187,16 @@ export function installHostBridge(options: HostBridgeOptions = {}): () => void {
   const routes = options.routes ?? DEFAULT_ROUTES;
 
   const onMessage = (event: MessageEvent) => {
-    const data = event.data as BridgeRequestMessage | null;
-    if (!data || data.type !== BRIDGE_REQUEST) return;
+    const data = event.data as (BridgeRequestMessage | BridgeOpenMessage) | null;
+    if (!data) return;
+
+    if (data.type === BRIDGE_OPEN) {
+      if (!originAllowed(event.origin, options.allowOrigin)) return;
+      options.onOpen?.(data, event);
+      return;
+    }
+
+    if (data.type !== BRIDGE_REQUEST) return;
 
     const port = event.ports?.[0];
     if (!port) return;
