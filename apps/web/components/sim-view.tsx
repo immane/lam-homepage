@@ -37,7 +37,9 @@ let emulatorRef: SimVm["emulator"] | null = null;
 const listeners = new Set<Listener>();
 const SNAPSHOT_DB = "lam-linux-sim";
 const SNAPSHOT_STORE = "snapshots";
-const SNAPSHOT_KEY = "buildroot-bzimage68-v1";
+// Bump this whenever provisioning changes so stale snapshots re-provision
+// instead of resuming without the new files.
+const SNAPSHOT_KEY = "buildroot-bzimage68-v2";
 const SNAPSHOT_INTERVAL_MS = 60_000;
 let snapshotInFlight = false;
 let snapshotPageHideRegistered = false;
@@ -172,7 +174,7 @@ async function provisionGuest(
   write: (text: string) => void,
 ): Promise<void> {
   try {
-    const [busybox, site] = await Promise.all([
+    const [busybox, site, footer] = await Promise.all([
       fetch("/sim/busybox-i686").then((res) => {
         if (!res.ok) throw new Error(`busybox fetch ${res.status}`);
         return res.arrayBuffer();
@@ -181,11 +183,16 @@ async function provisionGuest(
         if (!res.ok) throw new Error(`site fetch ${res.status}`);
         return res.text();
       }),
+      fetch("/footer.txt").then((res) => {
+        if (!res.ok) throw new Error(`footer fetch ${res.status}`);
+        return res.text();
+      }),
     ]);
 
     await emulator.create_file("/busybox", new Uint8Array(busybox));
     await emulator.create_file("/index.html", new TextEncoder().encode(site));
-    write(`\r\n[host] pushed busybox (${Math.round(busybox.byteLength / 1024)} KiB) + index.html to the 9p share\r\n`);
+    await emulator.create_file("/footer.txt", new TextEncoder().encode(footer));
+    write(`\r\n[host] pushed busybox (${Math.round(busybox.byteLength / 1024)} KiB) + index.html + footer.txt to the 9p share\r\n`);
 
     emulator.serial0_send(
       [
@@ -195,6 +202,7 @@ async function provisionGuest(
         // "busybox", so it must be installed under that exact name.
         "cp /mnt/busybox /opt/busybox && chmod +x /opt/busybox",
         "cp /mnt/index.html /www/index.html",
+        "cp /mnt/footer.txt ~/footer.txt",
         "ifconfig eth0 up",
         "udhcpc -i eth0 -n -q -t 8 >/dev/null 2>&1",
         "/opt/busybox httpd -h /www -p 80",
@@ -270,6 +278,12 @@ async function ensureBoot(): Promise<SimVm> {
     let loggedIn = false;
     let mirror: ReturnType<typeof setInterval> | null = null;
 
+    // Serial arrives byte by byte. Decode the live stream as UTF-8 (streaming
+    // so multi-byte characters split across events are handled) instead of
+    // mapping each byte to a Latin-1 char, which mangled non-ASCII output such
+    // as the "©" in ~/footer.txt.
+    const liveDecoder = new TextDecoder("utf-8");
+
     const rawLog: string[] = [];
     if (typeof window !== "undefined") {
       (window as unknown as { __lamSerialLog?: string[] }).__lamSerialLog = rawLog;
@@ -277,7 +291,7 @@ async function ensureBoot(): Promise<SimVm> {
 
     emulator.add_listener("serial0-output-byte", (byte) => {
       const char = String.fromCharCode(byte);
-      if (terminalWrite) terminalWrite(char);
+      if (terminalWrite) terminalWrite(liveDecoder.decode(new Uint8Array([byte]), { stream: true }));
       else buffered.push(byte);
       rawLog.push(char);
       if (rawLog.length > 400000) rawLog.splice(0, 200000);
