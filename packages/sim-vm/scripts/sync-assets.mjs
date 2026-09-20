@@ -5,14 +5,13 @@
  * - Copies `libv86.js` (UMD) and the wasm modules from the installed v86
  *   package (exact version match with the library matters).
  * - Downloads SeaBIOS/VGA BIOS if missing.
- * - Derives `bzImage` + `root.bin` (the ext2 root ramdisk) from the upstream
- *   Linux ISO, which is downloaded, unpacked and then removed.
+ * - Downloads the Buildroot kernel image used by the browser simulator.
  *
  * Usage: node scripts/sync-assets.mjs [targetDir]
  * Default target: <repo>/apps/web/public/sim
  */
 import { createRequire } from "node:module";
-import { mkdir, copyFile, access, stat, rm, readdir } from "node:fs/promises";
+import { mkdir, copyFile, access, stat, rm } from "node:fs/promises";
 import { createWriteStream } from "node:fs";
 import { Readable } from "node:stream";
 import { pipeline } from "node:stream/promises";
@@ -37,17 +36,10 @@ const v86Build = path.join(v86Dir, "build");
 /** Files copied verbatim from the v86 package. */
 const LOCAL_FILES = ["libv86.js", "v86.wasm", "v86-fallback.wasm"];
 
-/** Files fetched from the upstream v86 demo host (same origin there; we self-host). */
 const REMOTE_FILES = {
   "seabios.bin": "https://copy.sh/v86/bios/seabios.bin",
   "vgabios.bin": "https://copy.sh/v86/bios/vgabios.bin",
-};
-
-/** Linux image: the kernel and root ramdisk are extracted from this ISO. */
-const LINUX_ISO_URL = "https://copy.sh/v86/images/linux.iso";
-const DERIVED_FILES = {
-  bzImage: "BZIMAGE",
-  "root.bin": "ROOT.BIN",
+  "buildroot-bzimage68.bin": "https://i.copy.sh/buildroot-bzimage68.bin",
 };
 
 /**
@@ -75,26 +67,6 @@ async function download(url, dest) {
   await pipeline(Readable.fromWeb(res.body), createWriteStream(dest));
   const { size } = await stat(dest);
   if (size < 1024) throw new Error(`suspiciously small download: ${dest} (${size} bytes)`);
-}
-
-/** Extract specific members from an archive (ISO, .deb, tar) with bsdtar or 7z. */
-async function extractFromIso(isoPath, members, outDir) {
-  const attempts = [
-    { bin: "bsdtar", args: ["-xf", isoPath, "-C", outDir, ...members] },
-    { bin: "7z", args: ["x", "-y", `-o${outDir}`, isoPath, ...members] },
-  ];
-  for (const attempt of attempts) {
-    try {
-      await execFileAsync(attempt.bin, attempt.args);
-      return;
-    } catch (error) {
-      if (error && error.code === "ENOENT") continue; // tool not installed
-      throw error;
-    }
-  }
-  throw new Error(
-    "need `bsdtar` (libarchive) or `7z` to unpack downloaded images; install one and re-run",
-  );
 }
 
 /** Unpack a nested archive (e.g. data.tar.xz inside a .deb). */
@@ -128,25 +100,18 @@ async function ensureBusybox() {
   try {
     const deb = path.join(work, "busybox.deb");
     await download(BUSYBOX_DEB_URL, deb);
-    await extractTree(deb, work, "data.tar.xz");
-    await extractTree(path.join(work, "data.tar.xz"), work, `./${BUSYBOX_MEMBER}`);
+    try {
+      await execFileAsync("dpkg-deb", ["-x", deb, work]);
+    } catch (error) {
+      if (!error || error.code !== "ENOENT") throw error;
+      await extractTree(deb, work, "data.tar.xz");
+      await extractTree(path.join(work, "data.tar.xz"), work, `./${BUSYBOX_MEMBER}`);
+    }
     await copyFile(path.join(work, BUSYBOX_MEMBER), dest);
     console.log(`  extract  ${BUSYBOX_MEMBER} -> busybox-i686`);
   } finally {
     await rm(work, { recursive: true, force: true });
   }
-}
-
-/** Locate an extracted member regardless of the tool's directory layout. */
-async function findMember(dir, name) {
-  const wanted = name.toUpperCase();
-  const entries = await readdir(dir, { withFileTypes: true, recursive: true });
-  for (const entry of entries) {
-    if (entry.isFile() && entry.name.toUpperCase() === wanted) {
-      return path.join(entry.parentPath ?? entry.path, entry.name);
-    }
-  }
-  return null;
 }
 
 async function main() {
@@ -165,31 +130,6 @@ async function main() {
       continue;
     }
     await download(url, dest);
-  }
-
-  const stillMissing = [];
-  for (const name of Object.keys(DERIVED_FILES)) {
-    if (!(await exists(path.join(targetDir, name)))) stillMissing.push(name);
-  }
-
-  if (stillMissing.length > 0) {
-    const work = path.join(os.tmpdir(), `lam-sim-iso-${Date.now()}`);
-    await mkdir(work, { recursive: true });
-    const isoPath = path.join(work, "linux.iso");
-    try {
-      await download(LINUX_ISO_URL, isoPath);
-      await extractFromIso(isoPath, Object.values(DERIVED_FILES), work);
-      for (const [dest, member] of Object.entries(DERIVED_FILES)) {
-        const found = await findMember(work, member);
-        if (!found) throw new Error(`member ${member} not found in ISO`);
-        await copyFile(found, path.join(targetDir, dest));
-        console.log(`  extract  ${member} -> ${dest}`);
-      }
-    } finally {
-      await rm(work, { recursive: true, force: true });
-    }
-  } else {
-    console.log("  exists   bzImage, root.bin");
   }
 
   await ensureBusybox();

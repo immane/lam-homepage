@@ -5,6 +5,7 @@
   "license": "MIT",
   "scripts": {
     "dev": "pnpm --filter @lam/finder build:guest && next dev",
+    "prebuild": "pnpm --filter @lam/finder build:guest && pnpm --filter @lam/sim-vm sync-assets",
     "build": "next build",
     "build:static": "STATIC_EXPORT=1 next build",
     "start": "next start",
