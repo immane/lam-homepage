@@ -39,7 +39,7 @@ const SNAPSHOT_DB = "lam-linux-sim";
 const SNAPSHOT_STORE = "snapshots";
 // Bump this whenever provisioning changes so stale snapshots re-provision
 // instead of resuming without the new files.
-const SNAPSHOT_KEY = "buildroot-bzimage68-v3";
+const SNAPSHOT_KEY = "buildroot-bzimage68-v4";
 const SNAPSHOT_INTERVAL_MS = 60_000;
 let snapshotInFlight = false;
 let snapshotPageHideRegistered = false;
@@ -184,13 +184,17 @@ async function provisionGuest(
   write: (text: string) => void,
 ): Promise<void> {
   try {
-    const [busybox, footer, ...bundle] = await Promise.all([
+    const [busybox, footer, readme, ...bundle] = await Promise.all([
       fetch("/sim/busybox-i686").then((res) => {
         if (!res.ok) throw new Error(`busybox fetch ${res.status}`);
         return res.arrayBuffer();
       }),
       fetch("/footer.txt").then((res) => {
         if (!res.ok) throw new Error(`footer fetch ${res.status}`);
+        return res.text();
+      }),
+      fetch("/readme.txt").then((res) => {
+        if (!res.ok) throw new Error(`readme fetch ${res.status}`);
         return res.text();
       }),
       ...GUEST_BUNDLE_FILES.map((file) =>
@@ -212,7 +216,8 @@ async function provisionGuest(
       await emulator.create_file(`/guest-${flat}`, new Uint8Array(bundle[index]));
     }
     await emulator.create_file("/footer.txt", new TextEncoder().encode(footer));
-    write(`\r\n[host] pushed busybox (${Math.round(busybox.byteLength / 1024)} KiB) + ${GUEST_BUNDLE_FILES.length}-file web app + footer.txt to the 9p share\r\n`);
+    await emulator.create_file("/readme.txt", new TextEncoder().encode(readme));
+    write(`\r\n[host] pushed busybox (${Math.round(busybox.byteLength / 1024)} KiB) + ${GUEST_BUNDLE_FILES.length}-file web app + footer.txt + readme.txt to the 9p share\r\n`);
 
     emulator.serial0_send(
       [
@@ -226,6 +231,7 @@ async function provisionGuest(
         // "busybox", so it must be installed under that exact name.
         "cp /mnt/busybox /opt/busybox && chmod +x /opt/busybox",
         "cp /mnt/footer.txt ~/footer.txt",
+        "cp /mnt/readme.txt ~/readme.txt",
         ...GUEST_BUNDLE_FILES.map(
           (file) => `cp /mnt/guest-${file.replace("/", "-")} /www/${file}`,
         ),
@@ -244,6 +250,9 @@ async function provisionGuest(
         announcedServed = true;
         servedCallback?.();
         saveSnapshot();
+        // Boot is fully done: greet the visitor with the README, the way a
+        // freshly provisioned box would.
+        emulator.serial0_send("clear; cat ~/readme.txt\n");
         return;
       }
       await new Promise((resolve) => setTimeout(resolve, 1000));
