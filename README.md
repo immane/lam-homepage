@@ -1,168 +1,188 @@
-# lam-homepage · Matrix GitHub Showcase
+# lam-homepage
 
-Immersive Matrix-themed GitHub portfolio — live GitHub data, multi-window repository preview, draggable / resizable / minimizable Hacker Terminal experience.
+A Matrix-inspired GitHub portfolio built with Next.js, React, and TypeScript.
+It combines live GitHub data, a desktop-style window manager, repository
+previews, and an in-browser Linux guest that serves a Finder-style projects
+application.
 
 <p>
   <img src="https://img.shields.io/badge/Next.js-16-black?logo=next.js" alt="Next.js" />
   <img src="https://img.shields.io/badge/React-19-61dafb?logo=react" alt="React" />
-  <img src="https://img.shields.io/badge/TypeScript-5-3178c6?logo=typescript" alt="TS" />
-  <img src="https://img.shields.io/badge/Tailwind-4-38bdf8?logo=tailwindcss" alt="Tailwind" />
-  <img src="https://img.shields.io/badge/Matrix-%2300ff41-001a0d" alt="Matrix" />
+  <img src="https://img.shields.io/badge/TypeScript-5-3178c6?logo=typescript" alt="TypeScript" />
+  <img src="https://img.shields.io/badge/pnpm-10-f69220?logo=pnpm" alt="pnpm" />
 </p>
 
-<p>
-  <a href="https://github.com/immane/lam-homepage">GitHub</a> · <a href="#live-preview">Live Preview</a> · <a href="#features">Features</a> · <a href="#quick-start">Quick Start</a>
-</p>
+## Highlights
 
----
+- **Live portfolio data**: loads the configured GitHub profile, repositories,
+  pinned projects, stars, and language statistics through server-side API
+  routes.
+- **Desktop UI**: draggable, resizable, maximizable, minimizable, and
+  focusable windows provided by `@lam/desktop`.
+- **Repository browser**: browse repository contents, preview Markdown,
+  Mermaid diagrams, source code, and images without leaving the page.
+- **Browser Linux guest**: v86 boots a Buildroot kernel in the browser. Its
+  terminal is rendered with xterm and the guest serves a Finder-style projects
+  application through BusyBox HTTP.
+- **Browser compatibility fallback**: browsers with Service Worker support use
+  the page served by the guest at `/guest/`; browsers without it, including
+  some embedded WebViews, use the identical static Finder build at
+  `/guest-app/index.html` instead of receiving a 404.
+- **Mobile layout**: mobile windows use solid surfaces for readability; the
+  Finder's file grid remains touch-scrollable inside the projects window.
 
-## Live Preview
+## Requirements
 
-`app/page.tsx` is a single-page immersive home: Matrix rain + scanlines + glitch text + typing effect + project cards + repository preview windows.
+- Node.js 22
+- pnpm 10.12.4 (declared in `package.json`)
+- Internet access when simulator assets are generated for the first time
 
-- Local: `http://localhost:3000`
-- Production: auto-deploy on merge to `main` via Vercel
-
-Tip: Click any `ProjectCard` to open a repository preview in a multi-window layer. Windows are draggable, resizable, minimizable and support inactive state. Opening the same URL again focuses the existing window instead of duplicating it.
-
----
-
-## Features
-
-| Area | Highlights |
-|---|---|
-| Hero / Visual | `MatrixRain` (WebGL primary, Canvas fallback), `GlitchText`, `TypingText`, scanline, cursor pulse, frosted cards |
-| GitHub Data | `/api/github` aggregates `users/immane`, repositories, Pinned (GraphQL with HTML scraping fallback), language count / total stars / account creation year, SWR 60s cache + `stale-while-revalidate` |
-| Project Showcase | Pinned first + All Projects sorted by stars / updated time, `ProjectCard` terminal header with single red dot, hover scanline, language color dot |
-| Tech Stack | `TechStack` grid for commonly used stack |
-| Window System | `WebWindow` multi-instance, draggable (header grab, viewport clamp, rAF direct `transform`), resizable (8 handles, edge-compensated, min 360x280), maximizable (double-click header), minimizable to bottom Dock (stacked at `z230`), inactive state (`inactive` 0.78 opacity, click empty to deactivate, click window to focus and raise `z`), no re-center on resize, first-window `perspective` centering fix, cascade offset `32x28` |
-| Repository Browser | `RepositoryBrowser`: `react-resizable-panels` split, `contents` API listing, breadcrumb, `README` priority, `mermaid` dark theme, `CodePreview` (PrismLight + line numbers + Matrix theme), image raw `?raw=1` |
-| Linux Simulator | `@lam/sim-vm` (v86) boots a prebuilt i686 kernel (`bzImage` + ext2 root ramdisk) directly — no BIOS, no CD — with `console=ttyS0`, so the kernel boot log and the shell share one serial stream rendered by a single `xterm` pane in a `WebWindow` (`kind: "sim"`). The guest is a module-level singleton re-parented into the window, so minimize/restore never reboots it. Assets are self-hosted under `public/sim` via `pnpm sim:assets`; also reachable at `/sim`. |
-| UX Details | Persistent scrollbar `scrollbar-gutter: stable` prevents layout shift, solid window on mobile to avoid haze, title/path bars `z-index` pinned above content, `contain: layout paint` + `will-change` perf, `backdrop-filter:none` while dragging |
-
----
-
-## Tech Stack
-
-- Framework: Next.js 16 (App Router + Turbopack), React 19, TypeScript 5
-- Styling: Tailwind CSS 4 + `tw-animate-css` + custom `oklch` Matrix theme
-- Data: `swr` + GitHub REST / GraphQL + HTML fallback
-- UI: Radix UI, `lucide-react`, `sonner`, `vaul`, `embla-carousel`, etc.
-- Code / Markdown: `react-markdown` + `remark-gfm` + `react-syntax-highlighter` (PrismLight) + `mermaid` 11
-- Layout: `react-resizable-panels`, `next-themes`, `@vercel/analytics`
-
----
-
-## Project Structure
-
-pnpm monorepo: the Next.js app lives in `apps/web/`; `packages/*` holds the
-in-browser simulator pieces and `linux/` the guest image (see `linux/README.md`).
-
-```
-apps/web/
-  app/
-    page.tsx              # Single-page home + multi-window manager (windows/activeId/nextZ)
-    globals.css           # Matrix theme, window/dock/resize/mobile styles
-    layout.tsx
-    api/
-      github/route.ts     # Aggregates user/repos/pinned/stats, 60s cache
-      github/[owner]/[repo]/contents/route.ts # Directory/file preview, 1MB limit, raw redirect
-  components/
-    web-window.tsx        # Multi-window: drag (rAF), resize, maximize/minimize, inactive, cascade
-    repository-browser.tsx # File tree + preview (memo + useCallback)
-    code-preview.tsx      # Prism highlight (memo)
-    markdown-preview.tsx  # Markdown + Mermaid (memo)
-    matrix-rain.tsx       # WebGL rain (throttled on mobile, paused when hidden)
-    glitch-text.tsx / typing-text.tsx / project-card.tsx / tech-stack.tsx
-packages/
-  sim-vm/                 # v86 boot (BIOS-less), serial<->xterm, VGA
-  sim-bridge/             # postMessage data RPC (host provides token data)
-  sim-relay/              # ws<->tcp thin proxy exposing guest:80
-linux/
-  kernel/ rootfs/ tools/ net/ images/ # minimal i686 guest (see linux/README.md)
-```
-
----
+The simulator asset script uses `dpkg-deb` where available and falls back to
+`bsdtar` or `7z` when extracting BusyBox.
 
 ## Quick Start
 
 ```bash
-# 1. Install (from the repo root — pnpm workspace)
+# Install workspace dependencies from the repository root.
 pnpm install
 
-# 2. Configure (optional, raises GitHub rate limit)
-echo "GITHUB_TOKEN=ghp_xxx" > apps/web/.env.local
-# Without token, uses public API + HTML scraping with lower rate limit
+# Download/copy the browser Linux runtime assets once for local simulator use.
+pnpm sim:assets
 
-# 3. Develop
-pnpm dev            # turbo -> @lam/web
+# Start the Next.js app.
+pnpm dev
 # http://localhost:3000
-
-# 4. Build
-pnpm build && pnpm start
-
-# 5. Simulator assets (v86 wasm + BIOS + boot image, ~10MB, gitignored)
-pnpm sim:assets      # writes apps/web/public/sim/
-# then open http://localhost:3000/sim
 ```
 
-GitHub Token only needs `public_repo` read permission for GraphQL Pinned and higher REST limits. Without it, `fetchPinnedReposFromHTML` falls back to scraping.
+`pnpm dev` rebuilds the static Finder guest application. `pnpm sim:assets` is
+only needed manually for a fresh local checkout; production `pnpm build` runs
+the asset and Finder preparation steps automatically.
 
----
+### Optional GitHub Token
 
-## API
+Create `apps/web/.env.local` with a least-privilege token that can read the
+public profile data you intend to display:
 
-| Route | Method | Description |
-|-------|--------|-------------|
-| `GET /api/github` | GET | Returns `{user, repos[], stats}`, `repos` sorted pinned first + stars/updated, `Cache-Control: private, max-age=60, stale-while-revalidate=300` |
-| `GET /api/github/[owner]/[repo]/contents?path=&raw=1` | GET | Directory `{kind:"directory", entries[]}` or file `{kind:"file", content, canPreview}`; `size>1MB` or binary gives `canPreview=false`; `raw=1` 302 redirects to `download_url`; Cache 900s |
+```dotenv
+GITHUB_TOKEN=github_token_here
+```
 
----
+The token is read only on the server by API routes. Do not use a token with
+unnecessary private-repository access and never expose it through a
+`NEXT_PUBLIC_` variable.
 
-## Window System Contract
+Without a token, the site uses GitHub's public API with lower rate limits and
+falls back to public profile HTML for pinned repositories.
 
-- **Multi-open** `openPreview(url)` deduplicates: same `url` focuses existing window, no duplicate.
-- **Stacking** Each window has independent `z`, `focus` sets `z = nextZ++`, `activeId` controls `web-window-active / inactive`.
-- **Drag** Header `pointerdown` (excluding buttons/links) -> `setPointerCapture` -> rAF direct `transform: translate(calc(-50%+x), calc(-50%+y))`, `pointerup` syncs React `pos`, `web-window-moved` disables entrance animation.
-- **Resize** 8 handles, `w/n` keep opposite edge (e.g. `newLeft = startLeft + dx`), size clamp `MIN 360x280` to `vw-32`, only `size/pos` updated, no re-center.
-- **Minimize** Controlled `minimized`, Dock stacked at `bottom:16+idx*56`, `z230` on top; clicking empty layer `deactivateAll` only deactivates, does not close.
-- **Mobile** Window `background: var(--card); backdrop-filter:none; animation:none` for crisp rendering, title/path bars solid.
+## Commands
 
----
-
-## Responsive & Performance
-
-- `html/body { scrollbar-gutter: stable; overflow-y: scroll }` keeps scrollbar visible, no layout shift on popup.
-- `contain: layout paint; will-change: transform` + `backdrop-filter:none` while dragging/resizing.
-- `MatrixRain` column width `22px`, paused when `document.hidden`, frame-skipped on mobile.
-- `RepositoryBrowser` / `CodePreview` / `MarkdownPreview` are `memo` + `useCallback/useMemo`, images `loading=lazy`, `content-visibility:auto`.
-
----
+| Command | Description |
+| --- | --- |
+| `pnpm dev` | Build the guest Finder and run the web app in development mode. |
+| `pnpm build` | Build all workspace packages and the production Next.js application. |
+| `pnpm start` | Serve the production Next.js build. |
+| `pnpm test` | Run all workspace tests. |
+| `pnpm typecheck` | Run TypeScript checks across the workspace. |
+| `pnpm build:guest` | Build and copy the static Finder application to `apps/web/public/guest-app`. |
+| `pnpm sim:assets` | Synchronize v86, firmware, Buildroot, and BusyBox assets to `apps/web/public/sim`. |
 
 ## Customization
 
-- **User** Change `username = "immane"` in `app/api/github/route.ts:177`.
-- **Theme** Adjust `oklch` variables (`--primary`, `--matrix-green`, etc.) in `app/globals.css:7`.
-- **Window defaults** `MIN_W/MIN_H` in `components/web-window.tsx:22` and `min(80vw,1440px)` in `app/globals.css:222`.
-- **Cascade offset** `stagger*32/28` in `app/page.tsx:184`.
+- Change the displayed GitHub account by updating `username` in
+  `apps/web/app/api/github/route.ts`.
+- Adjust the Matrix color tokens in `apps/web/app/globals.css`.
+- The generated guest Finder is built from `packages/finder/`; run
+  `pnpm build:guest` after editing it outside the normal development workflow.
 
----
+## Architecture
 
-## Deployment
+```mermaid
+flowchart TD
+  visitor[Visitor browser]
 
-> [!IMPORTANT]
-> **Vercel → Root Directory must be set to `apps/web`.**
-> This repository is a pnpm monorepo; the Next.js app lives in `apps/web`.
-> Without this setting Vercel cannot find the app and the build fails.
-> (Project → Settings → General → Root Directory → `apps/web`)
+  subgraph web[Next.js host application]
+    home[Portfolio and desktop UI]
+    api[GitHub API routes]
+    proxy[Guest proxy]
+    sw[Service Worker]
+    fallback[Static Finder fallback]
+  end
 
-- Import to Vercel for auto-deploy on `main`, or deploy `npm run build` output to any Node 18+ environment.
-- Set `GITHUB_TOKEN` in Vercel Dashboard environment variables.
+  subgraph guest[In-browser Linux guest]
+    vm[v86 and Buildroot]
+    busybox[BusyBox HTTP server]
+    finder[Finder projects app]
+  end
 
----
+  github[GitHub REST and GraphQL APIs]
+
+  visitor -->|opens portfolio| home
+  home --> api
+  api --> github
+  home -->|starts guest| vm
+  vm --> busybox
+  busybox --> finder
+  finder -. postMessage bridge .-> home
+  finder -. fallback data request .-> api
+  visitor -->|requests /guest/*| sw
+  sw -->|MessageChannel| proxy
+  proxy -->|guest HTTP| vm
+  visitor -->|Service Worker unavailable| fallback
+  fallback -. postMessage bridge .-> home
+  fallback -. fallback data request .-> api
+```
+
+`@lam/desktop`, `@lam/finder`, `@lam/sim-bridge`, and `@lam/sim-vm` are pnpm
+workspace packages. Generated simulator assets and the static Finder fallback
+are intentionally ignored by Git and created by the documented build commands.
+
+## How the Linux Guest Works
+
+1. `@lam/sim-vm` loads v86, firmware, and a Buildroot kernel from `/sim`.
+2. The host creates an in-browser virtual network and provisions the guest with
+   BusyBox plus the built Finder files through a 9p filesystem share.
+3. BusyBox serves the Finder application on guest port 80.
+4. On browsers with Service Worker support, `/guest/*` is proxied to that guest
+   HTTP server through a `MessageChannel` owned by the host page.
+5. The Finder asks the host for portfolio data through `@lam/sim-bridge`; it
+   falls back to the same-origin `/api/github` route when necessary.
+
+The simulator is reachable at `/sim`. The home page starts it in the background
+so that the `./projects` window can open when the guest is ready.
+
+## API
+
+| Route | Description |
+| --- | --- |
+| `GET /api/github` | Returns the configured user's profile, sorted repositories, pinned projects, and aggregate statistics. |
+| `GET /api/github/:owner/:repo/contents?path=` | Returns a directory listing or a previewable file. Files over 1 MB and binary files are not returned as text. |
+| `GET /api/github/:owner/:repo/contents?path=&raw=1` | Redirects to GitHub's raw download URL when one is available. |
+
+The contents route is designed for the repository browser. Keep the configured
+GitHub token least-privileged, as described above.
+
+## Vercel Deployment
+
+This is a pnpm monorepo. Configure Vercel in the project dashboard as follows:
+
+1. Set **Root Directory** to `apps/web`.
+2. Select **Node.js 22.x**.
+3. Set **Build Command** to `pnpm build`. The web package `prebuild` step builds
+   the Finder application and synchronizes simulator assets before `next build`.
+4. Add `GITHUB_TOKEN` only if you need higher GitHub API limits. Use a
+   least-privilege token with no unnecessary private-repository access.
+
+The build downloads simulator dependencies when they are absent, so the build
+environment must have outbound network access. Deployments are triggered by the
+Vercel project configuration; this repository does not include a committed
+Vercel project configuration.
+
+## Security
+
+See [SECURITY.md](SECURITY.md) for supported versions and instructions for
+privately reporting vulnerabilities. Do not submit security issues as public
+GitHub issues.
 
 ## License
 
-MIT — Free for personal portfolio use, please credit Matrix style and window interactions if reused.
-
-Built with lots of coffee · Matrix forever
+[MIT](LICENSE)
