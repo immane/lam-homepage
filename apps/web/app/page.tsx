@@ -69,7 +69,7 @@ const socialLinks = [
     ),
   },
   {
-    name: "./email",
+    name: "$sendmail",
     url: "mailto:me@lam.wiki",
     icon: (
       <svg
