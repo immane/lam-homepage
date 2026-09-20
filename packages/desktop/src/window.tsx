@@ -120,7 +120,10 @@ function WebWindowInner({
   useEffect(() => {
     setIsMinimized(false);
     setIsMaximized(false);
-    const p = initialOffset ? { x: initialOffset.x, y: initialOffset.y } : { x: 0, y: 0 };
+    // Phones are too small for the open-cascade: the offset would push the
+    // window partly off-screen, so center it instead.
+    const compact = typeof window !== "undefined" && window.innerWidth <= 640;
+    const p = initialOffset && !compact ? { x: initialOffset.x, y: initialOffset.y } : { x: 0, y: 0 };
     setPos(p);
     posRef.current = p;
     setSize(null);
