@@ -1,0 +1,364 @@
+@import 'tailwindcss';
+@import 'tw-animate-css';
+
+@custom-variant dark (&:is(.dark *));
+
+/* Matrix / Hacker Theme */
+:root {
+  --background: oklch(0.02 0.005 150);
+  --foreground: oklch(0.9 0.2 145);
+  --card: oklch(0.05 0.015 150);
+  --card-foreground: oklch(0.9 0.2 145);
+  --popover: oklch(0.05 0.015 150);
+  --popover-foreground: oklch(0.9 0.2 145);
+  --primary: oklch(0.75 0.24 145);
+  --primary-foreground: oklch(0.02 0.005 150);
+  --secondary: oklch(0.08 0.02 150);
+  --secondary-foreground: oklch(0.9 0.2 145);
+  --muted: oklch(0.1 0.02 150);
+  --muted-foreground: oklch(0.6 0.14 145);
+  --accent: oklch(0.65 0.22 145);
+  --accent-foreground: oklch(0.02 0.005 150);
+  --destructive: oklch(0.55 0.22 30);
+  --destructive-foreground: oklch(0.95 0 0);
+  --border: oklch(0.25 0.08 145);
+  --input: oklch(0.12 0.03 150);
+  --ring: oklch(0.7 0.22 145);
+  --chart-1: oklch(0.7 0.22 145);
+  --chart-2: oklch(0.6 0.18 145);
+  --chart-3: oklch(0.5 0.15 145);
+  --chart-4: oklch(0.8 0.2 145);
+  --chart-5: oklch(0.65 0.2 145);
+  --radius: 0.375rem;
+  --sidebar: oklch(0.03 0.008 150);
+  --sidebar-foreground: oklch(0.9 0.2 145);
+  --sidebar-primary: oklch(0.75 0.24 145);
+  --sidebar-primary-foreground: oklch(0.02 0.005 150);
+  --sidebar-accent: oklch(0.08 0.02 150);
+  --sidebar-accent-foreground: oklch(0.9 0.2 145);
+  --sidebar-border: oklch(0.2 0.06 145);
+  --sidebar-ring: oklch(0.75 0.24 145);
+  
+  /* Custom Matrix colors */
+  --matrix-green: oklch(0.75 0.24 145);
+  --matrix-green-bright: oklch(0.92 0.28 145);
+  --matrix-green-dim: oklch(0.35 0.1 145);
+  --matrix-dark: oklch(0.01 0.003 150);
+}
+
+@theme inline {
+  --font-sans: 'Geist', 'Geist Fallback';
+  --font-mono: 'Geist Mono', 'Geist Mono Fallback';
+  --color-background: var(--background);
+  --color-foreground: var(--foreground);
+  --color-card: var(--card);
+  --color-card-foreground: var(--card-foreground);
+  --color-popover: var(--popover);
+  --color-popover-foreground: var(--popover-foreground);
+  --color-primary: var(--primary);
+  --color-primary-foreground: var(--primary-foreground);
+  --color-secondary: var(--secondary);
+  --color-secondary-foreground: var(--secondary-foreground);
+  --color-muted: var(--muted);
+  --color-muted-foreground: var(--muted-foreground);
+  --color-accent: var(--accent);
+  --color-accent-foreground: var(--accent-foreground);
+  --color-destructive: var(--destructive);
+  --color-destructive-foreground: var(--destructive-foreground);
+  --color-border: var(--border);
+  --color-input: var(--input);
+  --color-ring: var(--ring);
+  --color-chart-1: var(--chart-1);
+  --color-chart-2: var(--chart-2);
+  --color-chart-3: var(--chart-3);
+  --color-chart-4: var(--chart-4);
+  --color-chart-5: var(--chart-5);
+  --radius-sm: calc(var(--radius) - 4px);
+  --radius-md: calc(var(--radius) - 2px);
+  --radius-lg: var(--radius);
+  --radius-xl: calc(var(--radius) + 4px);
+  --color-sidebar: var(--sidebar);
+  --color-sidebar-foreground: var(--sidebar-foreground);
+  --color-sidebar-primary: var(--sidebar-primary);
+  --color-sidebar-primary-foreground: var(--sidebar-primary-foreground);
+  --color-sidebar-accent: var(--sidebar-accent);
+  --color-sidebar-accent-foreground: var(--sidebar-accent-foreground);
+  --color-sidebar-border: var(--sidebar-border);
+  --color-sidebar-ring: var(--sidebar-ring);
+  
+  --color-matrix-green: var(--matrix-green);
+  --color-matrix-green-bright: var(--matrix-green-bright);
+  --color-matrix-green-dim: var(--matrix-green-dim);
+  --color-matrix-dark: var(--matrix-dark);
+}
+
+html {
+  scrollbar-gutter: stable;
+}
+
+@layer base {
+  * {
+    @apply border-border outline-ring/50;
+  }
+  body {
+    @apply bg-background text-foreground;
+    scrollbar-gutter: stable;
+  }
+}
+
+/* Matrix Rain Animation */
+@keyframes matrix-fall {
+  0% {
+    transform: translateY(-100%);
+    opacity: 1;
+  }
+  100% {
+    transform: translateY(100vh);
+    opacity: 0;
+  }
+}
+
+@keyframes glow {
+  0%, 100% {
+    text-shadow: 0 0 10px var(--matrix-green), 0 0 20px var(--matrix-green), 0 0 30px var(--matrix-green);
+  }
+  50% {
+    text-shadow: 0 0 20px var(--matrix-green-bright), 0 0 40px var(--matrix-green-bright), 0 0 60px var(--matrix-green-bright);
+  }
+}
+
+@keyframes flicker {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.8; }
+}
+
+@keyframes scanline {
+  0% { transform: translateY(-100%); }
+  100% { transform: translateY(100%); }
+}
+
+@keyframes typing {
+  from { width: 0; }
+  to { width: 100%; }
+}
+
+@keyframes blink {
+  0%, 100% { border-color: transparent; }
+  50% { border-color: var(--matrix-green); }
+}
+
+.matrix-text {
+  animation: glow 2s ease-in-out infinite;
+}
+
+.matrix-flicker {
+  animation: flicker 0.1s infinite;
+}
+
+.scanline {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  height: 4px;
+  background: linear-gradient(transparent, var(--matrix-green), transparent);
+  opacity: 0.1;
+  animation: scanline 8s linear infinite;
+  pointer-events: none;
+  z-index: 100;
+}
+
+/* Custom scrollbar */
+::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+::-webkit-scrollbar-corner { background: transparent; }
+
+::-webkit-scrollbar-track {
+  background: var(--background);
+}
+
+::-webkit-scrollbar-thumb {
+  background: var(--matrix-green-dim);
+  border-radius: 4px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: var(--matrix-green);
+}
+
+.repository-browser {
+  display: flex;
+  height: 100%;
+  min-height: 0;
+  flex-direction: column;
+  background: color-mix(in oklch, var(--matrix-dark) 92%, var(--card));
+  color: var(--foreground);
+  font-family: var(--font-mono);
+  font-size: 12px;
+}
+
+.repository-browser-heading {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 14px 18px;
+  border-bottom: 1px solid color-mix(in oklch, var(--primary) 28%, transparent);
+  background: linear-gradient(110deg, color-mix(in oklch, var(--card) 92%, transparent), color-mix(in oklch, var(--primary) 9%, transparent));
+  box-shadow: inset 0 -1px 18px color-mix(in oklch, var(--primary) 7%, transparent);
+  font-family: var(--font-mono);
+  font-size: 14px;
+}
+
+.repository-browser-owner { color: var(--matrix-green-bright); text-shadow: 0 0 12px color-mix(in oklch, var(--primary) 65%, transparent); }
+.repository-browser-slash { padding: 0 4px; color: var(--matrix-green-dim); }
+
+.repository-sidebar-toggle { padding: 5px 8px; border: 1px solid color-mix(in oklch, var(--primary) 28%, transparent); border-radius: 4px; background: transparent; color: var(--muted-foreground); font: inherit; font-size: 10px; cursor: pointer; transition: all 160ms ease; }
+.repository-sidebar-toggle:hover { border-color: var(--primary); color: var(--matrix-green-bright); }
+
+.repository-browser-body { display: flex; width: 100%; min-height: 0; flex: 1; }
+.repository-panel-group { width: 100%; min-width: 0; min-height: 0; flex: 1; }
+
+.repository-files { height: 100%; overflow: auto; background: color-mix(in oklch, var(--matrix-dark) 80%, transparent); }
+.repository-resize-handle { position: relative; width: 7px; flex: 0 0 7px; cursor: col-resize; background: color-mix(in oklch, var(--primary) 16%, transparent); transition: background 160ms ease; }
+.repository-resize-handle:hover, .repository-resize-handle[data-resize-handle-active] { background: var(--primary); }
+
+.repository-path {
+  position: sticky;
+  top: 0;
+  z-index: 2;
+  display: flex;
+  gap: 8px;
+  align-items: center;
+  min-height: 42px;
+  padding: 0 12px;
+  border-bottom: 1px solid color-mix(in oklch, var(--primary) 18%, transparent);
+  background: var(--card);
+  color: var(--muted-foreground);
+  backdrop-filter: none;
+  -webkit-backdrop-filter: none;
+  -webkit-font-smoothing: antialiased;
+}
+
+.repository-path button, .repository-entry {
+  border: 0;
+  color: inherit;
+  font: inherit;
+  text-align: left;
+}
+
+.repository-path button { cursor: pointer; color: var(--primary); background: transparent; }
+.repository-path button:disabled { cursor: default; color: var(--matrix-green-dim); }
+.repository-path-list { display: flex; flex: 1; flex-wrap: nowrap; align-items: center; gap: 8px; min-width: 0; max-width: 100%; margin: 0; padding: 0; overflow-x: auto; list-style: none; white-space: nowrap; scrollbar-width: none; }
+.repository-path-list::-webkit-scrollbar { display: none; }
+.repository-path-list li { display: inline-flex; flex: none; align-items: center; gap: 8px; }
+.repository-path-list button { white-space: nowrap; }
+.repository-path-separator { color: var(--matrix-green-dim); }
+.repository-path-current { color: var(--foreground); }
+
+.repository-entry {
+  display: flex;
+  width: 100%;
+  gap: 8px;
+  padding: 9px 12px;
+  cursor: pointer;
+  background: transparent;
+}
+
+.repository-entry:hover { background: color-mix(in oklch, var(--primary) 11%, transparent); color: var(--matrix-green-bright); box-shadow: inset 2px 0 0 var(--primary); }
+.repository-folder-icon { color: var(--primary); }
+.repository-file-icon { color: var(--muted-foreground); }
+
+.repository-preview { height: 100%; min-width: 0; min-height: 0; overflow: auto; background: radial-gradient(circle at top right, color-mix(in oklch, var(--primary) 9%, transparent), transparent 34%), var(--matrix-dark); }
+.repository-preview header { position: sticky; top: 0; z-index: 3; padding: 13px 18px; border-bottom: 1px solid color-mix(in oklch, var(--primary) 20%, transparent); background: var(--card); color: var(--muted-foreground); backdrop-filter: none; -webkit-backdrop-filter: none; -webkit-font-smoothing: antialiased; transform: translateZ(0); }
+.repository-preview pre { margin: 0; padding: 18px; color: var(--foreground); font: inherit; line-height: 1.65; text-shadow: 0 0 8px color-mix(in oklch, var(--primary) 18%, transparent); white-space: pre-wrap; word-break: break-word; }
+.repository-image-preview { display: grid; min-height: 100%; place-items: center; padding: 24px; background: repeating-conic-gradient(color-mix(in oklch, var(--card) 52%, transparent) 0 25%, transparent 0 50%) 50% / 22px 22px; }
+.repository-image-preview img { max-width: 100%; max-height: 100%; border: 1px solid color-mix(in oklch, var(--primary) 35%, transparent); border-radius: 5px; box-shadow: 0 0 28px color-mix(in oklch, var(--primary) 16%, transparent); object-fit: contain; }
+
+.repository-empty, .repository-status { padding: 18px; color: var(--muted-foreground); }
+.repository-empty { display: grid; height: 100%; place-content: center; text-align: center; }
+.repository-empty span { color: var(--matrix-green); font-size: 11px; letter-spacing: 0.18em; }
+.repository-empty p { max-width: 260px; margin: 10px 0 0; line-height: 1.5; }
+.repository-error { color: #ff746d; }
+
+.markdown-preview { padding: 20px; color: var(--foreground); font-family: var(--font-sans); line-height: 1.7; }
+.markdown-preview > :first-child { margin-top: 0; }
+.markdown-preview > :last-child { margin-bottom: 0; }
+.markdown-preview h1, .markdown-preview h2, .markdown-preview h3, .markdown-preview h4 { margin: 1.8em 0 0.7em; color: var(--matrix-green-bright); font-family: var(--font-mono); line-height: 1.25; text-shadow: 0 0 14px color-mix(in oklch, var(--primary) 40%, transparent); scroll-margin-top: 53px; }
+.markdown-preview h5, .markdown-preview h6 { scroll-margin-top: 53px; }
+.markdown-preview h1 { padding-bottom: 0.45em; border-bottom: 1px solid color-mix(in oklch, var(--primary) 30%, transparent); font-size: 1.9em; }
+.markdown-preview h2 { padding-bottom: 0.35em; border-bottom: 1px solid color-mix(in oklch, var(--primary) 18%, transparent); font-size: 1.45em; }
+.markdown-preview p, .markdown-preview ul, .markdown-preview ol, .markdown-preview blockquote, .markdown-preview table { margin: 0.5em 0 0.5em; }
+.markdown-preview ul, .markdown-preview ol { padding-left: 1.6em; }
+.markdown-preview a { color: var(--matrix-green-bright); text-decoration: underline; text-underline-offset: 3px; }
+.markdown-preview blockquote { padding: 0.2em 1em; border-left: 3px solid var(--primary); color: var(--muted-foreground); }
+.markdown-preview code { padding: 0.16em 0.35em; border: 1px solid color-mix(in oklch, var(--primary) 22%, transparent); border-radius: 3px; background: color-mix(in oklch, var(--card) 80%, transparent); color: var(--matrix-green-bright); font-family: var(--font-mono); font-size: 0.88em; }
+/* markdown 围栏块不折行：整行保留、横向滚动（覆盖 .repository-preview pre 泄漏的 pre-wrap/break-word） */
+.markdown-preview pre { overflow: auto; padding: 0; white-space: pre; word-break: normal; overflow-wrap: normal; }
+/* 围栏块外边距：上下小间距，左右为 0 占满内容宽 */
+.markdown-preview > pre { margin: 0.4em 0; }
+/* 紧贴围栏块的上一元素下边距同样收紧（外边距折叠取最大值，只缩 pre 本身不够） */
+.markdown-preview > :is(p, ul, ol, blockquote, table, h1, h2, h3, h4):has(+ pre) { margin-bottom: 0.4em; }
+.markdown-preview pre > code { display: block; overflow: auto; padding: 8px 12px; border-radius: 6px; background: color-mix(in oklch, var(--matrix-dark) 88%, var(--card)); color: var(--foreground); line-height: 1.55; white-space: pre; }
+/* 高亮块的内边距已在 pre 上（CodePreview 内联样式）， inner code 不再重复加 padding/border/background */
+.markdown-preview pre > code.code-preview-content { padding: 0; border: 0; background: transparent; }
+.markdown-preview table { display: block; max-width: 100%; overflow: auto; border-collapse: collapse; }
+.markdown-preview th, .markdown-preview td { padding: 7px 11px; border: 1px solid color-mix(in oklch, var(--primary) 24%, transparent); text-align: left; }
+.markdown-preview th { background: color-mix(in oklch, var(--primary) 12%, transparent); color: var(--matrix-green-bright); }
+.markdown-preview img { max-width: 100%; height: auto; border: 1px solid color-mix(in oklch, var(--primary) 25%, transparent); border-radius: 5px; cursor: zoom-in; }
+.markdown-preview a img { cursor: pointer; }
+.markdown-preview input[type="checkbox"] { margin-right: 0.45em; accent-color: var(--primary); }
+/* Raw HTML inside markdown: align / media / figures */
+.markdown-preview div[align="center"], .markdown-preview p[align="center"], .markdown-preview h1[align="center"], .markdown-preview h2[align="center"], .markdown-preview h3[align="center"], .markdown-preview h4[align="center"], .markdown-preview figure[align="center"] { text-align: center; }
+.markdown-preview div[align="right"], .markdown-preview p[align="right"] { text-align: right; }
+.markdown-preview div[align="left"], .markdown-preview p[align="left"] { text-align: left; }
+.markdown-preview picture, .markdown-preview figure { max-width: 100%; margin: 0 0 1em; }
+/* picture/video 默认行内容器，同一 div/p 下多图横向排列（GitHub README 行为） */
+.markdown-preview picture { display: inline-block; vertical-align: middle; }
+.markdown-preview picture img { display: block; margin: 0; }
+.markdown-preview figure { display: block; text-align: center; }
+.markdown-preview figcaption { margin-top: 0.4em; color: var(--muted-foreground); font-size: 0.85em; }
+.markdown-preview video, .markdown-preview audio { max-width: 100%; border-radius: 6px; }
+.markdown-preview video { display: inline-block; vertical-align: middle; background: #000; }
+/* 同一 div/p 下的媒体元素横向排列、可换行，纵向居中对齐（纯文本链接不受影响） */
+.markdown-preview div > img, .markdown-preview div > picture, .markdown-preview div > video, .markdown-preview div > audio,
+.markdown-preview p > img, .markdown-preview p > picture, .markdown-preview p > video, .markdown-preview p > audio { display: inline-block; vertical-align: middle; margin: 4px; }
+.markdown-preview div > a:has(> img, > picture, > video), .markdown-preview p > a:has(> img, > picture, > video) { display: inline-block; vertical-align: middle; margin: 4px; }
+.markdown-preview div > a > img, .markdown-preview div > a > picture, .markdown-preview p > a > img, .markdown-preview p > a > picture { display: block; margin: 0; }
+.markdown-preview div > pre, .markdown-preview div > table, .markdown-preview div > blockquote, .markdown-preview div > ul, .markdown-preview div > ol, .markdown-preview div > h1, .markdown-preview div > h2, .markdown-preview div > h3, .markdown-preview div > h4 { display: block; margin: 0 0 1em; }
+.markdown-preview details { margin: 0 0 1em; padding: 0.6em 0.9em; border: 1px solid color-mix(in oklch, var(--primary) 22%, transparent); border-radius: 6px; }
+.markdown-preview summary { cursor: pointer; color: var(--matrix-green-bright); font-family: var(--font-mono); }
+.markdown-preview mark { padding: 0 0.2em; border-radius: 3px; background: color-mix(in oklch, var(--primary) 30%, transparent); color: inherit; }
+
+/* 图片点击放大：z 必须高于窗口（窗口 z 从 210 起每次聚焦 +1，无上限） */
+.markdown-lightbox { position: fixed; inset: 0; z-index: 9999; display: grid; place-items: center; padding: 24px; background: rgba(0, 0, 0, 0.85); cursor: zoom-out; }
+.markdown-lightbox img { max-width: min(92vw, 1200px); max-height: 86vh; border: 1px solid color-mix(in oklch, var(--primary) 35%, transparent); border-radius: 8px; cursor: default; }
+.markdown-lightbox-close { position: fixed; top: 16px; right: 16px; display: grid; place-items: center; width: 36px; height: 36px; border: 1px solid color-mix(in oklch, var(--primary) 35%, transparent); border-radius: 50%; background: color-mix(in oklch, var(--card) 85%, transparent); color: var(--matrix-green-bright); cursor: pointer; }
+.markdown-lightbox-close:hover { background: color-mix(in oklch, var(--primary) 25%, var(--card)); }
+
+.mermaid-diagram { display: grid; min-height: 120px; margin: 1.2em 0; place-items: center; overflow: auto; padding: 18px; border: 1px solid color-mix(in oklch, var(--primary) 30%, transparent); border-radius: 6px; background: color-mix(in oklch, var(--matrix-dark) 84%, var(--card)); color: var(--muted-foreground); font-family: var(--font-mono); }
+.mermaid-diagram svg { min-width: 360px; max-width: 100%; height: auto; }
+.mermaid-error { padding: 12px; border: 1px solid #ff746d; color: #ff746d; }
+
+@media (max-width: 640px) {
+  .repository-resize-handle { display: none; }
+}
+
+/* v86 simulator window — the whole session renders in one xterm terminal */
+.sim-shell { position: absolute; inset: 0; display: flex; flex-direction: column; background: #000; }
+.sim-statusbar { display: flex; flex: none; align-items: center; gap: 8px; padding: 7px 10px 3px; background: transparent; color: var(--muted-foreground); font-family: var(--font-mono); font-size: 11px; }
+.sim-status-dot { width: 8px; height: 8px; flex: none; border-radius: 50%; background: #febc2e; box-shadow: 0 0 8px color-mix(in oklch, #febc2e 55%, transparent); }
+.sim-status-dot[data-state="running"] { background: #28c840; box-shadow: 0 0 8px color-mix(in oklch, #28c840 55%, transparent); }
+.sim-status-dot[data-state="error"] { background: #ff5f57; box-shadow: 0 0 8px color-mix(in oklch, #ff5f57 55%, transparent); }
+.sim-slot { display: flex; flex: 1; min-height: 0; padding: 0; }
+.sim-term-host { flex: 1; min-height: 0; padding: 4px 6px 6px; background: #000; }
+/* Hidden VGA screen: exists only so v86 maintains the text buffer that we
+   mirror into the terminal (the kernel logs to tty0, not the serial port). */
+.sim-vga { display: none; }
+.sim-term-host .xterm { height: 100%; }
+.sim-term-host .xterm-viewport { background: transparent !important; }
+
+/* Finder preview route shell: full viewport, `dvh` so mobile browser chrome
+   does not clip it (falls back to `vh` where `dvh` is unsupported). */
+.finder-page { height: 100vh; height: 100dvh; padding: 16px; box-sizing: border-box; }

@@ -1,0 +1,310 @@
+/*
+ * @lam/finder — self-contained Finder styles.
+ *
+ * Portable: every theme token has a fallback, so the app looks right inside
+ * the host theme today and standalone (e.g. served from the guest Linux)
+ * later.
+ */
+
+.finder {
+  display: flex;
+  height: 100%;
+  min-height: 0;
+  overflow: hidden;
+  border: 1px solid var(--border, #30363d);
+  border-radius: 8px;
+  background: color-mix(in oklch, var(--card, #0d1117) 92%, transparent);
+  color: var(--foreground, #e6edf3);
+  font-family: var(--font-mono, ui-monospace, SFMono-Regular, Menlo, monospace);
+}
+
+.finder-sidebar {
+  width: 208px;
+  flex: none;
+  overflow: auto;
+  padding: 10px 8px;
+  border-right: 1px solid var(--border, #30363d);
+  background: color-mix(in oklch, var(--background, #010409) 72%, var(--card, #0d1117));
+}
+
+.finder-section + .finder-section { margin-top: 16px; }
+
+.finder-section-title {
+  margin: 0 6px 6px;
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: var(--muted-foreground, #8b949e);
+}
+
+.finder-section-empty {
+  margin: 0 8px;
+  font-size: 11px;
+  color: var(--muted-foreground, #8b949e);
+}
+
+.finder-sidebar-item {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  width: 100%;
+  padding: 6px 8px;
+  border: 0;
+  border-radius: 6px;
+  background: transparent;
+  color: inherit;
+  font: inherit;
+  font-size: 12px;
+  text-align: left;
+  cursor: pointer;
+}
+
+.finder-sidebar-item:hover {
+  background: color-mix(in oklch, var(--primary, #39d353) 10%, transparent);
+}
+
+.finder-sidebar-item[aria-pressed="true"] {
+  background: color-mix(in oklch, var(--primary, #39d353) 16%, transparent);
+  color: var(--primary, #39d353);
+}
+
+.finder-sidebar-icon {
+  width: 14px;
+  flex: none;
+  text-align: center;
+  color: var(--muted-foreground, #8b949e);
+}
+
+.finder-sidebar-label {
+  flex: 1;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.finder-sidebar-count {
+  flex: none;
+  font-size: 10px;
+  color: var(--muted-foreground, #8b949e);
+}
+
+.finder-tag-dot {
+  width: 8px;
+  height: 8px;
+  flex: none;
+  border-radius: 50%;
+  box-shadow: inset 0 0 0 1px rgba(0, 0, 0, 0.35);
+}
+
+.finder-main {
+  display: flex;
+  flex: 1;
+  min-width: 0;
+  flex-direction: column;
+}
+
+.finder-toolbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 10px 14px;
+  border-bottom: 1px solid var(--border, #30363d);
+}
+
+.finder-breadcrumb {
+  display: flex;
+  min-width: 0;
+  align-items: center;
+  gap: 6px;
+  font-size: 12px;
+  color: var(--muted-foreground, #8b949e);
+}
+
+.finder-breadcrumb-root,
+.finder-breadcrumb-sep { color: var(--primary, #39d353); }
+
+.finder-breadcrumb-current {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  color: var(--foreground, #e6edf3);
+}
+
+.finder-toolbar-controls {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.finder-search {
+  width: 180px;
+  padding: 5px 10px;
+  border: 1px solid var(--border, #30363d);
+  border-radius: 6px;
+  background: color-mix(in oklch, var(--background, #010409) 80%, transparent);
+  color: inherit;
+  font: inherit;
+  font-size: 12px;
+  outline: none;
+}
+
+.finder-search:focus { border-color: var(--primary, #39d353); }
+
+.finder-count {
+  font-size: 11px;
+  white-space: nowrap;
+  color: var(--muted-foreground, #8b949e);
+}
+
+.finder-body {
+  flex: 1;
+  min-height: 0;
+  overflow: auto;
+  padding: 14px;
+}
+
+.finder-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(150px, 1fr));
+  gap: 10px;
+}
+
+.finder-file {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 6px;
+  padding: 12px;
+  border: 1px solid transparent;
+  border-radius: 8px;
+  background: transparent;
+  color: inherit;
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+
+.finder-file:hover {
+  border-color: color-mix(in oklch, var(--primary, #39d353) 25%, transparent);
+  background: color-mix(in oklch, var(--primary, #39d353) 8%, transparent);
+}
+
+.finder-file[aria-selected="true"] {
+  border-color: var(--primary, #39d353);
+  background: color-mix(in oklch, var(--primary, #39d353) 16%, transparent);
+}
+
+.finder-file-glyph {
+  width: 26px;
+  height: 26px;
+  color: var(--primary, #39d353);
+}
+
+.finder-file-name {
+  max-width: 100%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: 12px;
+  font-weight: 600;
+}
+
+.finder-file-meta {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  font-size: 10px;
+  color: var(--muted-foreground, #8b949e);
+}
+
+.finder-file-lang { display: inline-flex; align-items: center; gap: 5px; }
+.finder-file-lang--unknown { opacity: 0.7; }
+
+.finder-status {
+  padding: 24px;
+  text-align: center;
+  font-size: 12px;
+  color: var(--muted-foreground, #8b949e);
+}
+
+.finder-status-error { color: #ff746d; }
+
+/* Mobile: the sidebar becomes a horizontally scrollable chip bar so the
+   Tags (language) filters stay reachable instead of being hidden. */
+@media (max-width: 640px) {
+  .finder { flex-direction: column; }
+
+  .finder-sidebar {
+    display: flex;
+    width: 100%;
+    flex: none;
+    flex-wrap: nowrap;
+    align-items: center;
+    gap: 6px;
+    overflow-x: auto;
+    padding: 8px 10px;
+    border-right: 0;
+    border-bottom: 1px solid var(--border, #30363d);
+    -webkit-overflow-scrolling: touch;
+    scrollbar-width: none;
+  }
+
+  .finder-sidebar::-webkit-scrollbar { display: none; }
+
+  .finder-section {
+    display: flex;
+    flex: none;
+    align-items: center;
+    gap: 6px;
+  }
+
+  .finder-section + .finder-section {
+    margin-top: 0;
+    padding-left: 8px;
+    border-left: 1px solid var(--border, #30363d);
+  }
+
+  .finder-section-title {
+    margin: 0 4px 0 0;
+    white-space: nowrap;
+  }
+
+  .finder-section-empty { margin: 0; white-space: nowrap; }
+
+  .finder-sidebar-item {
+    width: auto;
+    flex: none;
+    padding: 6px 10px;
+    border: 1px solid var(--border, #30363d);
+    border-radius: 999px;
+    white-space: nowrap;
+  }
+
+  .finder-toolbar {
+    flex-wrap: wrap;
+    gap: 8px;
+    padding: 10px;
+  }
+
+  .finder-breadcrumb { flex: 1 1 100%; }
+  .finder-toolbar-controls { flex: 1 1 auto; width: 100%; }
+  .finder-search { flex: 1; width: auto; min-width: 0; }
+
+  .finder-body { padding: 10px; }
+
+  .finder-grid {
+    grid-template-columns: repeat(auto-fill, minmax(120px, 1fr));
+    gap: 8px;
+  }
+
+  .finder-file { padding: 10px; }
+  .finder-file-glyph { width: 22px; height: 22px; }
+}
+
+@media (max-width: 400px) {
+  .finder-breadcrumb-root,
+  .finder-breadcrumb-sep { display: none; }
+  .finder-grid { grid-template-columns: repeat(auto-fill, minmax(104px, 1fr)); }
+}
