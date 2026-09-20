@@ -100,6 +100,10 @@
 .finder-main {
   display: flex;
   flex: 1;
+  /* Column layout on mobile: without this the panel keeps its content height
+     and `.finder-body` never becomes the scroll container (touch scrolling
+     silently stops working). */
+  min-height: 0;
   min-width: 0;
   flex-direction: column;
 }

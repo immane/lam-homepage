@@ -96,9 +96,6 @@ function LoadingState() {
         <div className="w-16 h-16 border-2 border-primary/30 rounded-full" />
         <div className="absolute inset-0 w-16 h-16 border-2 border-transparent border-t-primary rounded-full animate-spin" />
       </div>
-      <div className="font-mono text-primary text-sm">
-        <span className="animate-pulse">{">"} Loading GitHub data...</span>
-      </div>
       <div className="font-mono text-muted-foreground text-xs">
         Establishing connection to the Matrix...
       </div>
