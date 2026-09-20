@@ -107,40 +107,22 @@ describe("Finder", () => {
     expect(screen.queryByText("nexus-chat")).toBeNull();
   });
 
-  it("opens a project on double-click via onOpenProject", async () => {
+  it("opens a project with one click via onOpenProject", async () => {
     const onOpenProject = vi.fn();
     renderFinder({ onOpenProject });
     await waitFor(() => expect(screen.getByText("crud-platform")).toBeInTheDocument());
 
-    fireEvent.doubleClick(screen.getByText("crud-platform"));
+    fireEvent.click(screen.getByText("crud-platform"));
     expect(onOpenProject).toHaveBeenCalledWith(
       expect.objectContaining({ name: "crud-platform" }),
     );
   });
 
-  it("on coarse pointers a second tap opens the project", async () => {
-    vi.stubGlobal(
-      "matchMedia",
-      vi.fn(() => ({
-        matches: true,
-        media: "(pointer: coarse)",
-        addEventListener: vi.fn(),
-        removeEventListener: vi.fn(),
-        onchange: null,
-        dispatchEvent: vi.fn(),
-      })),
-    );
-    const onOpenProject = vi.fn();
-    renderFinder({ onOpenProject });
-    await waitFor(() => expect(screen.getByText("crud-platform")).toBeInTheDocument());
+  it("shows a status bar with the single-click hint", async () => {
+    renderFinder();
+    await waitFor(() => expect(screen.getByText("tetris-silicon")).toBeInTheDocument());
 
-    const file = screen.getByText("crud-platform").closest("button") as HTMLButtonElement;
-    fireEvent.click(file);
-    expect(onOpenProject).not.toHaveBeenCalled();
-    fireEvent.click(file);
-    expect(onOpenProject).toHaveBeenCalledWith(
-      expect.objectContaining({ name: "crud-platform" }),
-    );
+    expect(screen.getByText("Click a project to open")).toBeInTheDocument();
   });
 
   it("surfaces a load error", async () => {

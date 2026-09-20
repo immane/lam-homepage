@@ -195,14 +195,9 @@
   background: color-mix(in oklch, var(--primary, #39d353) 8%, transparent);
 }
 
-.finder-file[aria-selected="true"] {
-  border-color: var(--primary, #39d353);
-  background: color-mix(in oklch, var(--primary, #39d353) 16%, transparent);
-}
-
 .finder-file-glyph {
-  width: 26px;
-  height: 26px;
+  width: 32px;
+  height: 32px;
   color: var(--primary, #39d353);
 }
 
@@ -234,6 +229,17 @@
 }
 
 .finder-status-error { color: #ff746d; }
+
+.finder-statusbar {
+  display: flex;
+  flex: none;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 7px 14px;
+  border-top: 1px solid var(--border, #30363d);
+  color: var(--muted-foreground, #8b949e);
+  font-size: 10px;
+}
 
 /* Mobile: the sidebar becomes a horizontally scrollable chip bar so the
    Tags (language) filters stay reachable instead of being hidden. */
@@ -304,7 +310,8 @@
   }
 
   .finder-file { padding: 10px; }
-  .finder-file-glyph { width: 22px; height: 22px; }
+  .finder-file-glyph { width: 28px; height: 28px; }
+  .finder-statusbar { padding: 7px 10px; }
 }
 
 @media (max-width: 400px) {

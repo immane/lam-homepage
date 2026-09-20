@@ -427,9 +427,9 @@ export default function HomePage() {
     });
   };
 
-  // The simulator boots on page load; once its shell is ready it steps out of
-  // the way by minimizing itself (it can be reopened from the dock).
-  const handleSimReady = () => {
+  // Let the guest's welcome text finish printing before it steps out of the
+  // way. The simulator can still be reopened from the dock afterwards.
+  const handleSimReadmeComplete = () => {
     const id = simIdRef.current;
     if (!id) return;
     minimize(id);
@@ -890,7 +890,7 @@ export default function HomePage() {
                     />
                   ) : null;
                 case "sim":
-                  return <SimView onReady={handleSimReady} />;
+                  return <SimView onReadmeComplete={handleSimReadmeComplete} />;
                 case "guest":
                   return (
                     <iframe

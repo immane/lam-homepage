@@ -37,6 +37,9 @@ let detail: string | undefined;
 /** Called once when the guest reaches an interactive shell prompt. */
 let readyCallback: (() => void) | null = null;
 let announcedReady = false;
+/** Called after the guest's welcome README has finished printing. */
+let readmeCompleteCallback: (() => void) | null = null;
+let awaitingReadmeCompletion = false;
 /** Called once the guest is serving HTTP on port 80. */
 let servedCallback: (() => void) | null = null;
 let announcedServed = false;
@@ -46,7 +49,7 @@ const SNAPSHOT_DB = "lam-linux-sim";
 const SNAPSHOT_STORE = "snapshots";
 // Bump this whenever provisioning changes so stale snapshots re-provision
 // instead of resuming without the new files.
-const SNAPSHOT_KEY = "buildroot-bzimage68-v4";
+const SNAPSHOT_KEY = "buildroot-bzimage68-v8";
 const SNAPSHOT_INTERVAL_MS = 60_000;
 let snapshotInFlight = false;
 let snapshotPageHideRegistered = false;
@@ -259,7 +262,10 @@ async function provisionGuest(
         saveSnapshot();
         // Boot is fully done: greet the visitor with the README, the way a
         // freshly provisioned box would.
-        emulator.serial0_send("clear; cat ~/readme.txt\n");
+        // The record separator is intercepted below. It arrives only after
+        // `cat` has written every README byte to the serial stream.
+        awaitingReadmeCompletion = true;
+        emulator.serial0_send("clear; cat ~/readme.txt; printf '\\x1e'\n");
         return;
       }
       await new Promise((resolve) => setTimeout(resolve, 1000));
@@ -330,6 +336,12 @@ async function ensureBoot(): Promise<SimVm> {
     }
 
     emulator.add_listener("serial0-output-byte", (byte) => {
+      if (byte === 30 && awaitingReadmeCompletion) {
+        awaitingReadmeCompletion = false;
+        // Give xterm a frame to flush the final README bytes before hiding.
+        window.setTimeout(() => readmeCompleteCallback?.(), 100);
+        return;
+      }
       const char = String.fromCharCode(byte);
       if (terminalWrite) terminalWrite(liveDecoder.decode(new Uint8Array([byte]), { stream: true }));
       else buffered.push(byte);
@@ -365,6 +377,7 @@ async function ensureBoot(): Promise<SimVm> {
         announcedReady = true;
         announcedServed = true;
         readyCallback?.();
+        readmeCompleteCallback?.();
         servedCallback?.();
         // The terminal itself is not part of v86's snapshot. Ask the restored
         // shell to redraw its prompt after serial listeners are attached.
@@ -449,14 +462,16 @@ async function ensureBoot(): Promise<SimVm> {
 
 export function SimView({
   onReady,
+  onReadmeComplete,
   onServed,
-}: { onReady?: () => void; onServed?: () => void } = {}) {
+}: { onReady?: () => void; onReadmeComplete?: () => void; onServed?: () => void } = {}) {
   const slot = useRef<HTMLDivElement>(null);
   const [current, setCurrent] = useState<SimStatus>(status);
   const [currentDetail, setCurrentDetail] = useState<string | undefined>(detail);
 
   useEffect(() => {
     readyCallback = onReady ?? null;
+    readmeCompleteCallback = onReadmeComplete ?? null;
     servedCallback = onServed ?? null;
     const listener: Listener = (next, nextDetail) => {
       setCurrent(next);

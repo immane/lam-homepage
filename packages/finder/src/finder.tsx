@@ -136,19 +136,6 @@ export function Finder({
   const { projects, loading, error } = useProjects(source, loader);
   const [selection, setSelection] = useState<Selection>({ kind: "all" });
   const [query, setQuery] = useState("");
-  const [selectedId, setSelectedId] = useState<string | null>(null);
-  const [coarsePointer, setCoarsePointer] = useState(false);
-
-  // Touch devices have no hover/double-click: a second tap on the already
-  // selected file opens it, so projects are reachable on mobile.
-  useEffect(() => {
-    if (typeof window === "undefined" || typeof window.matchMedia !== "function") return;
-    const mql = window.matchMedia("(pointer: coarse)");
-    setCoarsePointer(mql.matches);
-    const onChange = (event: MediaQueryListEvent) => setCoarsePointer(event.matches);
-    mql.addEventListener?.("change", onChange);
-    return () => mql.removeEventListener?.("change", onChange);
-  }, []);
 
   const tags = useMemo<TagEntry[]>(() => {
     const counts = new Map<string, number>();
@@ -295,19 +282,13 @@ export function Finder({
                 const color = project.language
                   ? languageColor(project.language)
                   : UNKNOWN_LANGUAGE_COLOR;
-                const isSelected = selectedId === project.name;
                 return (
                   <button
                     key={project.name}
                     type="button"
                     role="option"
-                    aria-selected={isSelected}
                     className="finder-file"
-                    onClick={() => {
-                      if (coarsePointer && selectedId === project.name) openProject(project);
-                      else setSelectedId(project.name);
-                    }}
-                    onDoubleClick={() => openProject(project)}
+                    onClick={() => openProject(project)}
                     title={project.description ?? project.name}
                   >
                     <FileGlyph />
@@ -337,6 +318,10 @@ export function Finder({
             </div>
           )}
         </div>
+        <footer className="finder-statusbar">
+          <span>{loading ? "Loading…" : error ? "Unable to load projects" : `${filtered.length} items`}</span>
+          <span>Click a project to open</span>
+        </footer>
       </section>
     </div>
   );
