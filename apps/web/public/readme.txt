@@ -17,10 +17,9 @@ Everything served to browsers lives in /www. Have a look around:
   ls /www
   cat /www/index.html
 
-The web root is yours — this replaces the whole page with a tiny animated
-matrix, so keep a copy if you want it back:
+The web root is yours — this replaces the whole page with a tiny tetris game, so keep a copy if you want it back:
 
-  printf "<!doctype html><html lang='en'><body style='margin:0;background:#000;overflow:hidden'><canvas id='c'></canvas><script>c.width=innerWidth;c.height=innerHeight;let x=c.getContext('2d'),s=16,n=c.width/s,d=Array(n|0).fill(1);setInterval(()=>{x.fillStyle='#0001';x.fillRect(0,0,c.width,c.height);x.fillStyle='#0f0';x.font=s+'px monospace';d.forEach((y,i)=>{x.fillText(String.fromCharCode(0x30A0+Math.random()*96),i*s,y*s);if(y*s>c.height&&Math.random()>.975)d[i]=0;d[i]++})},33)</script></html>" > /www/index.html
+  echo H4sIAAAAAAAC/41Ua2+iQBT9K5ZuyYxc6Yz2kYpDsrt+2XTb9JFNNMakI4xCioADorT63/cCdvv4tAm5MJdz7r1z5sDAk3Ehs1boC6+1Cf08EF3GWoEKF0EuzhhzB5mnwzR3t8KzFyr/mcS52ubE6PoGhZn4rrUsCXKoPQ+jiDAKd2Iy4edTmPSgh7ELlxh5Hc/qeFHne3AxnUIqRmIsYsHgWpAVjGBMhbuys2SpCNFQ4mrCgEMXOU32RbjadV9MbppkbJUuv9rtRtbLgNU3F1ezSfWCtjmzMDOllMKtIFjpNRV3k1jcyDywtYz9ZElo+3LHsHIUeopQGIkejAXbw70gEnwokEW29dYe8zJS4inIIvLttWifs32LM3bSumAn9AkazIPyciLbXQZ+FfgVXtj9oen+sY5xzBgzPtIYMEAdAUVHYe2lTAkpIERiYZr3JDzhDMJTznYMp6KQNoivElXJDwrdE1QAUA2ILY5C7OHmoMR/0ckXKUVTxZknmpSCXzmlK5hTdjp0dpCwRChUweJoCVUoXZIfSRIpGdOqnp2l7zhe73QdZ0E4z4lt242b+LuZKJSWRZ1bgpMPm8nHlgXXJK2tUlmg04EbUolcYZL4WZV+somFQqiycSWEgWWTzW81zw3TPKq5HV6zR0j+BHqofP8PZR1Q2PETaogNEDREw3zK/0kxS1Zigvb+KumrRo8fVJe16vJNZL0TfDDodUrchTbNlZ2us4BouqeAc6zedpqKFa0aeomvsONjKj1V9VOFjIixCcJIkaODMtUxoVD4iQ4P2iAx1XgecT5Uc7mO8kouP/HWS0zZs8Qv7axx5lLqRRj3mTOT3vNCJ+vY7x9zzh0/xMOTZX+hQ9/BJ091wlwts76HJZR2mr9GH7+KIjAAz6zum6n8V/W6mnIIZ+eMDk4P/5S/jk64LX4EAAA=|base64 -d|gzip -d >/www/index.html
 
 Then reopen the Projects window (or reload it). Restore with:
 
