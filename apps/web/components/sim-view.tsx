@@ -6,6 +6,13 @@ import { probeGuest, registerGuestProxy } from "@/lib/guest-proxy";
 
 export type SimStatus = "loading" | "booting" | "running" | "error";
 
+/** Visitor-facing status copy (the emulator's own wording is an implementation detail). */
+const STATUS_MESSAGES: Record<Exclude<SimStatus, "running">, string> = {
+  loading: "Loading Linux images, this may take a few minutes…",
+  booting: "Booting Linux…",
+  error: "Failed to boot the guest",
+};
+
 type Listener = (status: SimStatus, detail?: string) => void;
 
 /**
@@ -487,7 +494,7 @@ export function SimView({
         <div className="sim-statusbar">
           <span className="sim-status-dot" data-state={current} aria-hidden />
           <span>
-            {`guest ${current}`}
+            {STATUS_MESSAGES[current]}
             {currentDetail ? ` — ${currentDetail}` : ""}
           </span>
         </div>

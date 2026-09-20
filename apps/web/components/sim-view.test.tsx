@@ -133,8 +133,8 @@ describe("SimView", () => {
   it("hides the status line once running (terminal takes full height)", async () => {
     await renderSimView();
     await waitFor(() => expect(mocks.calls.createSimVm).toBe(1));
-    expect(screen.getByText(/guest /)).toBeInTheDocument();
+    expect(screen.getByText(/Loading Linux images/)).toBeInTheDocument();
     mocks.listeners.get("emulator-started")?.(undefined);
-    await waitFor(() => expect(screen.queryByText(/guest /)).toBeNull());
+    await waitFor(() => expect(screen.queryByText(/Loading Linux images/)).toBeNull());
   });
 });
