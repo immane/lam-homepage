@@ -127,6 +127,24 @@ export function fetchFromGuest(
 }
 
 /**
+ * Resolve `true` once a service worker is active and can intercept `/guest/*`.
+ *
+ * Resolves `false` when the browser has no service worker support at all (e.g.
+ * WeChat's X5 browser), so the caller can fall back to the host-served static
+ * build instead of letting the request reach the app router and render its 404
+ * page. A registration that never activates simply keeps this pending.
+ */
+export function waitForGuestProxy(): Promise<boolean> {
+  if (typeof navigator === "undefined" || !("serviceWorker" in navigator)) {
+    return Promise.resolve(false);
+  }
+  return navigator.serviceWorker.ready.then(
+    () => true,
+    () => false,
+  );
+}
+
+/**
  * Register the service worker and answer its guest requests. Safe to call more
  * than once; later registrations just replace the emulator lookup.
  */

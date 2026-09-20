@@ -17,6 +17,7 @@ import { ProjectCard } from "@/components/project-card";
 import { TechStack } from "@/components/tech-stack";
 import { RepositoryBrowser } from "@/components/repository-browser";
 import { SimView } from "@/components/sim-view";
+import { waitForGuestProxy } from "@/lib/guest-proxy";
 import { cn } from "@/lib/utils";
 
 interface GitHubData {
@@ -135,6 +136,12 @@ type WindowMeta =
 
 const SIM_LABEL = "Linux Shell";
 const GUEST_LABEL = "projects-http";
+/**
+ * Host-served copy of the same static build the guest serves. Used when the
+ * browser cannot proxy `/guest/*` (no service worker), where requesting it
+ * would otherwise reach the app router and render a 404.
+ */
+const GUEST_FALLBACK_URL = "/guest-app/index.html";
 
 /** The real URL a window points at, if any (repo/url kinds only). */
 function windowUrl(w: WindowDescriptor<WindowMeta>): string | undefined {
@@ -326,6 +333,19 @@ export default function HomePage() {
       }),
     [],
   );
+
+  // `/guest/*` is only reachable through the service worker. Without one the
+  // guest window falls back to the host-served build rather than a 404.
+  const [guestProxyReady, setGuestProxyReady] = useState(false);
+  useEffect(() => {
+    let active = true;
+    void waitForGuestProxy().then((ready) => {
+      if (active) setGuestProxyReady(ready);
+    });
+    return () => {
+      active = false;
+    };
+  }, []);
 
   // Body scroll lock: only while a window is active (visible and focused).
   // When no window is active (deactivated, minimized, or closed), the home
@@ -866,7 +886,7 @@ export default function HomePage() {
                   return (
                     <iframe
                       className="web-window-frame"
-                      src="/guest/"
+                      src={guestProxyReady ? "/guest/" : GUEST_FALLBACK_URL}
                       title="projects httpd"
                       loading="lazy"
                     />
