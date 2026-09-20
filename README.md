@@ -1,9 +1,8 @@
 # lam-homepage
 
-A Matrix-inspired GitHub portfolio built with Next.js, React, and TypeScript.
-It combines live GitHub data, a desktop-style window manager, repository
-previews, and an in-browser Linux guest that serves a Finder-style projects
-application.
+A browser-native Matrix workstation where the projects app runs behind a
+Buildroot Linux guest. Boot the VM, serve Finder over guest HTTP, bridge live
+GitHub data into it, and inspect repositories through a windowed desktop.
 
 <p>
   <img src="https://img.shields.io/badge/Next.js-16-black?logo=next.js" alt="Next.js" />
@@ -11,6 +10,44 @@ application.
   <img src="https://img.shields.io/badge/TypeScript-5-3178c6?logo=typescript" alt="TypeScript" />
   <img src="https://img.shields.io/badge/pnpm-10-f69220?logo=pnpm" alt="pnpm" />
 </p>
+
+## Architecture
+
+```mermaid
+flowchart TD
+  visitor[Visitor browser]
+
+  subgraph web[Next.js host application]
+    home[Portfolio and desktop UI]
+    api[GitHub API routes]
+    proxy[Guest proxy]
+    sw[Service Worker]
+    fallback[Static Finder fallback]
+  end
+
+  subgraph guest[In-browser Linux guest]
+    vm[v86 and Buildroot]
+    busybox[BusyBox HTTP server]
+    finder[Finder projects app]
+  end
+
+  github[GitHub REST and GraphQL APIs]
+
+  visitor -->|opens portfolio| home
+  home --> api
+  api --> github
+  home -->|starts guest| vm
+  vm --> busybox
+  busybox --> finder
+  finder -. postMessage bridge .-> home
+  finder -. fallback data request .-> api
+  visitor -->|requests /guest/*| sw
+  sw -->|MessageChannel| proxy
+  proxy -->|guest HTTP| vm
+  visitor -->|Service Worker unavailable| fallback
+  fallback -. postMessage bridge .-> home
+  fallback -. fallback data request .-> api
+```
 
 ## Highlights
 
@@ -93,44 +130,6 @@ falls back to public profile HTML for pinned repositories.
 - Adjust the Matrix color tokens in `apps/web/app/globals.css`.
 - The generated guest Finder is built from `packages/finder/`; run
   `pnpm build:guest` after editing it outside the normal development workflow.
-
-## Architecture
-
-```mermaid
-flowchart TD
-  visitor[Visitor browser]
-
-  subgraph web[Next.js host application]
-    home[Portfolio and desktop UI]
-    api[GitHub API routes]
-    proxy[Guest proxy]
-    sw[Service Worker]
-    fallback[Static Finder fallback]
-  end
-
-  subgraph guest[In-browser Linux guest]
-    vm[v86 and Buildroot]
-    busybox[BusyBox HTTP server]
-    finder[Finder projects app]
-  end
-
-  github[GitHub REST and GraphQL APIs]
-
-  visitor -->|opens portfolio| home
-  home --> api
-  api --> github
-  home -->|starts guest| vm
-  vm --> busybox
-  busybox --> finder
-  finder -. postMessage bridge .-> home
-  finder -. fallback data request .-> api
-  visitor -->|requests /guest/*| sw
-  sw -->|MessageChannel| proxy
-  proxy -->|guest HTTP| vm
-  visitor -->|Service Worker unavailable| fallback
-  fallback -. postMessage bridge .-> home
-  fallback -. fallback data request .-> api
-```
 
 `@lam/desktop`, `@lam/finder`, `@lam/sim-bridge`, and `@lam/sim-vm` are pnpm
 workspace packages. Generated simulator assets and the static Finder fallback
