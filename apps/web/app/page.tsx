@@ -2,6 +2,7 @@
 
 import { useState, useEffect, useRef } from "react";
 import useSWR from "swr";
+import dynamic from "next/dynamic";
 import {
   WebWindow,
   useWindowManager,
@@ -9,6 +10,7 @@ import {
   releaseBodyLock,
   type WindowDescriptor,
 } from "@lam/desktop";
+import type { FinderProject } from "@lam/finder";
 import { MatrixRain } from "@/components/matrix-rain";
 import { GlitchText } from "@/components/glitch-text";
 import { TypingText } from "@/components/typing-text";
@@ -55,7 +57,7 @@ const fetcher = (url: string) => fetch(url).then((res) => res.json());
 const socialLinks = [
   {
     name: "GitHub",
-    url: "#tech-stack",
+    url: "#finder",
     icon: (
       <svg className="w-5 h-5" fill="currentColor" viewBox="0 0 24 24">
         <path
@@ -134,6 +136,23 @@ type WindowMeta =
 
 const SIM_LABEL = "Linux Shell";
 const GUEST_LABEL = "guest-http";
+const FINDER_LABEL = "Finder";
+
+/**
+ * The Finder app is code-split and browser-only: its chunk is only fetched
+ * the first time a Finder window opens.
+ */
+const FinderApp = dynamic(
+  () => import("@lam/finder").then((mod) => mod.Finder),
+  {
+    ssr: false,
+    loading: () => (
+      <p style={{ padding: 24, fontFamily: "var(--font-mono, monospace)", fontSize: 12 }}>
+        Loading Finder…
+      </p>
+    ),
+  },
+);
 
 /** The real URL a window points at, if any (repo/url kinds only). */
 function windowUrl(w: WindowDescriptor<WindowMeta>): string | undefined {
@@ -155,6 +174,25 @@ function TerminalGlyph() {
         strokeLinejoin="round"
         strokeWidth={2}
         d="M8 9l3 3-3 3m5 0h3M5 20h14a2 2 0 002-2V6a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z"
+      />
+    </svg>
+  );
+}
+
+function FinderGlyph() {
+  return (
+    <svg
+      className="web-window-minimized-icon"
+      aria-hidden
+      fill="none"
+      stroke="currentColor"
+      viewBox="0 0 24 24"
+    >
+      <path
+        strokeLinecap="round"
+        strokeLinejoin="round"
+        strokeWidth={2}
+        d="M3 7a2 2 0 012-2h4l2 2h8a2 2 0 012 2v8a2 2 0 01-2 2H5a2 2 0 01-2-2V7z"
       />
     </svg>
   );
@@ -386,9 +424,14 @@ export default function HomePage() {
     openGuest();
   };
 
-  const scrollToTechStack = () => {
-    document.getElementById("tech-stack")?.scrollIntoView({ behavior: "smooth" });
-  };
+  // The Finder app: a window whose content is the code-split @lam/finder.
+  const openFinder = () =>
+    openOrFocus((w) => w.kind === "finder", {
+      kind: "finder",
+      label: FINDER_LABEL,
+      address: "~/projects",
+      meta: {},
+    });
 
   return (
     <main className="relative min-h-screen overflow-x-hidden">
@@ -471,8 +514,8 @@ export default function HomePage() {
                   key={link.name}
                   type="button"
                   onClick={() => {
-                    if (link.url === "#tech-stack") {
-                      scrollToTechStack();
+                    if (link.url === "#finder") {
+                      openFinder();
                     } else if (link.url.startsWith("mailto:")) {
                       window.location.href = link.url;
                     } else {
@@ -764,9 +807,9 @@ export default function HomePage() {
             id={w.id}
             label={w.label}
             address={w.address}
-            icon={isSim ? <TerminalGlyph /> : undefined}
+            icon={isSim ? <TerminalGlyph /> : w.kind === "finder" ? <FinderGlyph /> : undefined}
             actions={
-              isSim || w.kind === "guest" ? undefined : (
+              isSim || w.kind === "guest" || w.kind === "finder" ? undefined : (
                 <WindowActions
                   repository={meta.repository ?? null}
                   homepage={meta.homepage ?? null}
@@ -813,6 +856,16 @@ export default function HomePage() {
                       title="guest httpd"
                       loading="lazy"
                     />
+                  );
+                case "finder":
+                  return (
+                    <div style={{ height: "100%", padding: 8, boxSizing: "border-box" }}>
+                      <FinderApp
+                        onOpenProject={(project: FinderProject) =>
+                          openPreview(project.url, project.homepage)
+                        }
+                      />
+                    </div>
                   );
                 default:
                   return null;
