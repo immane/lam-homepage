@@ -51,7 +51,10 @@ const SNAPSHOT_STORE = "snapshots";
 // instead of resuming without the new files.
 const SNAPSHOT_KEY = "buildroot-bzimage68-v8";
 const SNAPSHOT_INTERVAL_MS = 60_000;
+const COMMAND_SNAPSHOT_DELAY_MS = 250;
+const COMMAND_SNAPSHOT_MIN_INTERVAL_MS = 5_000;
 let snapshotInFlight = false;
+let lastSnapshotStartedAt = 0;
 let snapshotPageHideRegistered = false;
 
 type StatefulEmulator = SimVm["emulator"] & {
@@ -102,9 +105,11 @@ async function writeSnapshot(state: ArrayBuffer): Promise<void> {
 }
 
 function saveSnapshot() {
-  if (!emulatorRef || !announcedReady || snapshotInFlight) return;
+  const emulator = emulatorRef as Partial<StatefulEmulator> | null;
+  if (!emulator || !announcedReady || snapshotInFlight || typeof emulator.save_state !== "function") return;
   snapshotInFlight = true;
-  (emulatorRef as StatefulEmulator).save_state((error, state) => {
+  lastSnapshotStartedAt = Date.now();
+  emulator.save_state((error, state) => {
     snapshotInFlight = false;
     if (!error && state) void writeSnapshot(state);
   });
@@ -323,6 +328,7 @@ async function ensureBoot(): Promise<SimVm> {
     let tail = "";
     let loggedIn = false;
     let mirror: ReturnType<typeof setInterval> | null = null;
+    let snapshotTimer: ReturnType<typeof setTimeout> | null = null;
 
     // Serial arrives byte by byte. Decode the live stream as UTF-8 (streaming
     // so multi-byte characters split across events are handled) instead of
@@ -355,7 +361,8 @@ async function ensureBoot(): Promise<SimVm> {
         return;
       }
       // The serial shell is interactive once it prints its prompt.
-      if (!announcedReady && /(\/root%|~%)\s*$/.test(tail)) {
+      const atPrompt = /(\/root%|~%)\s*$/.test(tail);
+      if (!announcedReady && atPrompt) {
         announcedReady = true;
         if (mirror !== null) {
           clearInterval(mirror);
@@ -363,6 +370,17 @@ async function ensureBoot(): Promise<SimVm> {
         }
         readyCallback?.();
         void provisionGuest(emulator, writeOut);
+      } else if (announcedReady && atPrompt) {
+        // A new prompt means the preceding command completed, including writes
+        // to the ramdisk. Snapshot then, rather than relying on page teardown,
+        // but never serialize the full VM more than once every five seconds.
+        if (snapshotTimer) clearTimeout(snapshotTimer);
+        const elapsed = Date.now() - lastSnapshotStartedAt;
+        const delay = Math.max(
+          COMMAND_SNAPSHOT_DELAY_MS,
+          COMMAND_SNAPSHOT_MIN_INTERVAL_MS - elapsed,
+        );
+        snapshotTimer = setTimeout(saveSnapshot, delay);
       }
     });
 

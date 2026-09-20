@@ -7,7 +7,7 @@ import { cleanup, render, screen, waitFor } from "@testing-library/react";
  */
 const mocks = vi.hoisted(() => {
   const listeners = new Map<string, (arg: unknown) => void>();
-  const calls = { write: [] as string[], serialSend: [] as string[], createSimVm: 0 };
+  const calls = { write: [] as string[], serialSend: [] as string[], createSimVm: 0, saveState: 0 };
   let onData: ((data: string) => void) | undefined;
 
   const emulator = {
@@ -15,6 +15,10 @@ const mocks = vi.hoisted(() => {
       listeners.set(event, cb);
     },
     serial0_send: (data: string) => calls.serialSend.push(data),
+    save_state: (callback: (error: Error | null, state?: ArrayBuffer) => void) => {
+      calls.saveState += 1;
+      callback(null, new ArrayBuffer(1));
+    },
   };
 
   const Terminal = class {
@@ -45,6 +49,7 @@ const mocks = vi.hoisted(() => {
       calls.write.length = 0;
       calls.serialSend.length = 0;
       calls.createSimVm = 0;
+      calls.saveState = 0;
       onData = undefined;
     },
   };
@@ -74,6 +79,7 @@ beforeEach(() => {
 });
 
 afterEach(() => {
+  vi.useRealTimers();
   cleanup();
 });
 
@@ -128,6 +134,25 @@ describe("SimView", () => {
     expect(onReady).toHaveBeenCalledTimes(1);
     emitSerial("\r\n/root% ");
     expect(onReady).toHaveBeenCalledTimes(1);
+  });
+
+  it("saves the guest after a command returns to the shell prompt", async () => {
+    await renderSimView();
+    await waitFor(() => expect(mocks.calls.createSimVm).toBe(1));
+
+    vi.useFakeTimers();
+    emitSerial("\r\n/root% ");
+    emitSerial("\r\n/root% ");
+    await vi.advanceTimersByTimeAsync(250);
+
+    expect(mocks.calls.saveState).toBe(1);
+
+    emitSerial("\r\n/root% ");
+    await vi.advanceTimersByTimeAsync(4_999);
+    expect(mocks.calls.saveState).toBe(1);
+    await vi.advanceTimersByTimeAsync(1);
+
+    expect(mocks.calls.saveState).toBe(2);
   });
 
   it("hides the status line once running (terminal takes full height)", async () => {
