@@ -36,6 +36,8 @@ export interface WebWindowProps {
   minimized?: boolean;
   onMinimize?: (id: string) => void;
   onRestore?: (id: string) => void;
+  /** Reload the current window body. */
+  onReload?: (id?: string) => void;
   initialOffset?: { x: number; y: number };
   /** When false the window cannot be closed (no toolbar/dock close, no Escape). */
   closable?: boolean;
@@ -64,6 +66,7 @@ function WebWindowInner({
   minimized,
   onMinimize,
   onRestore,
+  onReload,
   initialOffset,
   closable = true,
   renderContent,
@@ -505,6 +508,22 @@ function WebWindowInner({
           className="web-window-actions"
           style={{ display: "flex", alignItems: "center", gap: 6, justifySelf: "end" }}
         >
+          {onReload && (
+            <button
+              aria-label={`Reload ${label}`}
+              className="web-window-external-link web-window-reload"
+              onClick={(event) => {
+                event.stopPropagation();
+                onReload(id);
+              }}
+              type="button"
+              title="Reload"
+            >
+              <svg aria-hidden="true" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
+                <path d="M20 11a8.1 8.1 0 0 0-15.5-2M4 5v4h4M4 13a8.1 8.1 0 0 0 15.5 2M20 19v-4h-4" />
+              </svg>
+            </button>
+          )}
           {actions}
         </div>
       </header>

@@ -50,6 +50,23 @@ describe("WebWindow", () => {
     expect(screen.getByText("link")).toBeInTheDocument();
   });
 
+  it("reloads the current window through the host callback", () => {
+    const onReload = vi.fn();
+    render(
+      <WebWindow
+        id="win-reload"
+        label="reloadable"
+        active
+        onClose={() => {}}
+        onReload={onReload}
+        renderContent={() => <div />}
+      />,
+    );
+
+    fireEvent.click(screen.getByRole("button", { name: "Reload reloadable" }));
+    expect(onReload).toHaveBeenCalledWith("win-reload");
+  });
+
   it("closable=false disables the close control; click and Escape do not close", () => {
     const onClose = vi.fn();
     const { container } = render(

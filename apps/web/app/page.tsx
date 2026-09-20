@@ -268,6 +268,7 @@ function WindowActions({
 export default function HomePage() {
   const [mounted, setMounted] = useState(false);
   const [showContent, setShowContent] = useState(false);
+  const [reloadVersions, setReloadVersions] = useState<Record<string, number>>({});
   const {
     windows,
     activeId,
@@ -445,6 +446,14 @@ export default function HomePage() {
       address: "~/projects",
       meta: {},
     });
+
+  const reloadWindow = (id?: string) => {
+    if (!id) return;
+    setReloadVersions((versions) => ({
+      ...versions,
+      [id]: (versions[id] ?? 0) + 1,
+    }));
+  };
 
   return (
     <main className="relative h-screen overflow-hidden">
@@ -820,6 +829,7 @@ export default function HomePage() {
       )}
       {windows.map((w) => {
         const minimizedIdx = windows.filter((x) => x.minimized).findIndex((x) => x.id === w.id);
+        const reloadVersion = reloadVersions[w.id] ?? 0;
         const meta = w.meta as {
           repository?: { owner: string; name: string };
           url?: string;
@@ -858,6 +868,7 @@ export default function HomePage() {
             minimized={w.minimized}
             onMinimize={minimize}
             onRestore={restore}
+            onReload={isSim ? undefined : reloadWindow}
             initialOffset={w.initialOffset}
             closable={w.closable ?? true}
             renderContent={() => {
@@ -865,12 +876,13 @@ export default function HomePage() {
                 case "repo": {
                   const repo = meta.repository;
                   return repo ? (
-                    <RepositoryBrowser owner={repo.owner} repository={repo.name} />
+                    <RepositoryBrowser key={reloadVersion} owner={repo.owner} repository={repo.name} />
                   ) : null;
                 }
                 case "url":
                   return meta.url ? (
                     <iframe
+                      key={reloadVersion}
                       className="web-window-frame"
                       src={meta.url}
                       title={w.label}
@@ -882,6 +894,7 @@ export default function HomePage() {
                 case "guest":
                   return (
                     <iframe
+                      key={reloadVersion}
                       className="web-window-frame"
                       src={guestProxyReady ? "/guest/" : GUEST_FALLBACK_URL}
                       title="projects httpd"
