@@ -39,7 +39,7 @@ const SNAPSHOT_DB = "lam-linux-sim";
 const SNAPSHOT_STORE = "snapshots";
 // Bump this whenever provisioning changes so stale snapshots re-provision
 // instead of resuming without the new files.
-const SNAPSHOT_KEY = "buildroot-bzimage68-v2";
+const SNAPSHOT_KEY = "buildroot-bzimage68-v3";
 const SNAPSHOT_INTERVAL_MS = 60_000;
 let snapshotInFlight = false;
 let snapshotPageHideRegistered = false;
@@ -165,46 +165,70 @@ function newVgaLines(previous: string[], current: string[]): string[] {
 }
 
 /**
- * Push the static HTTP server and the single-file site into the guest (9p
- * share), then start serving on port 80. The stock image ships no httpd, so
- * we hand it a static i686 busybox.
+ * The static build of @lam/finder (produced by `pnpm build:guest`) that the
+ * guest serves. Every file is pushed through the 9p share, so adding an asset
+ * to the bundle only requires an entry here.
+ *
+ * Served from `/guest-app/*` rather than `/guest/*`: the latter is the service
+ * worker's proxy prefix, which would intercept these fetches and route them
+ * back into the guest before the files have been pushed.
  */
+export const GUEST_BUNDLE_BASE = "/guest-app";
+export const GUEST_BUNDLE_FILES = ["index.html", "assets/app.js", "assets/style.css"] as const;
+
+/** Push the static HTTP server and the web app into the guest (9p share),
+ * then start serving on port 80. The stock image ships no httpd, so we hand
+ * it a static i686 busybox. */
 async function provisionGuest(
   emulator: SimVm["emulator"],
   write: (text: string) => void,
 ): Promise<void> {
   try {
-    const [busybox, site, footer] = await Promise.all([
+    const [busybox, footer, ...bundle] = await Promise.all([
       fetch("/sim/busybox-i686").then((res) => {
         if (!res.ok) throw new Error(`busybox fetch ${res.status}`);
         return res.arrayBuffer();
-      }),
-      fetch("/guest-site.html").then((res) => {
-        if (!res.ok) throw new Error(`site fetch ${res.status}`);
-        return res.text();
       }),
       fetch("/footer.txt").then((res) => {
         if (!res.ok) throw new Error(`footer fetch ${res.status}`);
         return res.text();
       }),
+      ...GUEST_BUNDLE_FILES.map((file) =>
+        fetch(`${GUEST_BUNDLE_BASE}/${file}`).then((res) => {
+          if (!res.ok) throw new Error(`guest bundle fetch ${file} (${res.status})`);
+          return res.arrayBuffer();
+        }),
+      ),
     ]);
 
+    // Every file must be in the 9p share *before* the guest mounts it. The
+    // guest caches the directory listing at mount time, so files written
+    // afterwards never show up in /mnt — the mount has to be the last step.
     await emulator.create_file("/busybox", new Uint8Array(busybox));
-    await emulator.create_file("/index.html", new TextEncoder().encode(site));
+    // Each bundle file lands at a flat "/guest-<name>" slot on the 9p share;
+    // the guest copies them into /www with the right sub-directories.
+    for (let index = 0; index < GUEST_BUNDLE_FILES.length; index += 1) {
+      const flat = GUEST_BUNDLE_FILES[index].replace("/", "-");
+      await emulator.create_file(`/guest-${flat}`, new Uint8Array(bundle[index]));
+    }
     await emulator.create_file("/footer.txt", new TextEncoder().encode(footer));
-    write(`\r\n[host] pushed busybox (${Math.round(busybox.byteLength / 1024)} KiB) + index.html + footer.txt to the 9p share\r\n`);
+    write(`\r\n[host] pushed busybox (${Math.round(busybox.byteLength / 1024)} KiB) + ${GUEST_BUNDLE_FILES.length}-file web app + footer.txt to the 9p share\r\n`);
 
     emulator.serial0_send(
       [
-        "mkdir -p /www /mnt /opt",
+        "mkdir -p /www/assets /opt",
+        // Mount only now, so the guest sees all the files above.
+        "ifconfig eth0 up",
+        "udhcpc -i eth0 -n -q -t 8 >/dev/null 2>&1",
+        "mkdir -p /mnt",
         "mount -t 9p -o trans=virtio,version=9p2000.L host9p /mnt 2>/dev/null || mount -t 9p host9p /mnt 2>/dev/null",
         // busybox only treats argv[1] as the applet when it is invoked as
         // "busybox", so it must be installed under that exact name.
         "cp /mnt/busybox /opt/busybox && chmod +x /opt/busybox",
-        "cp /mnt/index.html /www/index.html",
         "cp /mnt/footer.txt ~/footer.txt",
-        "ifconfig eth0 up",
-        "udhcpc -i eth0 -n -q -t 8 >/dev/null 2>&1",
+        ...GUEST_BUNDLE_FILES.map(
+          (file) => `cp /mnt/guest-${file.replace("/", "-")} /www/${file}`,
+        ),
         "/opt/busybox httpd -h /www -p 80",
         "echo '[guest] httpd listening on :80'",
         "",

@@ -48,6 +48,14 @@ function useProjects(source: string): FetchState {
   });
 
   useEffect(() => {
+    // No source configured (e.g. the standalone guest build before the sim
+    // bridge is wired up): show the empty state instead of requesting the
+    // document itself, which would come back as HTML.
+    if (!source) {
+      setState({ projects: [], loading: false, error: null });
+      return;
+    }
+
     const controller = new AbortController();
     let active = true;
     setState({ projects: [], loading: true, error: null });
@@ -251,7 +259,11 @@ export function Finder({
           ) : error ? (
             <p className="finder-status finder-status-error">{error}</p>
           ) : filtered.length === 0 ? (
-            <p className="finder-status">No matching projects</p>
+            <p className="finder-status">
+              {projects.length === 0
+                ? "No projects in this source"
+                : "No matching projects"}
+            </p>
           ) : (
             <div className="finder-grid" role="listbox" aria-label={collectionLabel}>
               {filtered.map((project) => {

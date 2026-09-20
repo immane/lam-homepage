@@ -8,6 +8,7 @@
     "dev": "turbo run dev --filter=@lam/web",
     "build": "turbo run build",
     "build:static": "turbo run build:static --filter=@lam/web",
+    "build:guest": "turbo run build:guest --filter=@lam/finder",
     "start": "turbo run start --filter=@lam/web",
     "test": "turbo run test",
     "lint": "turbo run lint",

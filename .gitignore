@@ -21,3 +21,9 @@ package-lock.json
 
 # v86 runtime assets (synced by packages/sim-vm/scripts/sync-assets.mjs)
 apps/web/public/sim/
+
+# Static Finder build injected into the guest (packages/finder build:static)
+apps/web/public/guest-app/
+
+# Static Finder build output (packages/finder build)
+packages/finder/dist/

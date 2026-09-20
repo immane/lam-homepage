@@ -19,9 +19,20 @@ self.addEventListener("fetch", (event) => {
   event.respondWith(proxyToGuest(event.request, url));
 });
 
+/**
+ * Ask one page to perform the guest exchange over a MessageChannel.
+ *
+ * Not every tab can service a request: only the page that owns the v86
+ * instance can, and a `/guest/` tab (which is itself proxied) cannot. Pages
+ * announce themselves with a `guest-ready` message, so prefer a known-capable
+ * client instead of blindly taking `clients[0]` — otherwise a guest tab
+ * silently swallows requests and they time out.
+ */
 async function proxyToGuest(request, url) {
   const clients = await self.clients.matchAll({ type: "window", includeUncontrolled: true });
-  const client = clients[0];
+  const capable = clients.filter((client) => client.url && !isGuestUrl(client.url));
+  const candidates = capable.length > 0 ? capable : clients;
+  const client = candidates[0];
   if (!client) {
     return new Response("simulator is not running", { status: 503 });
   }
@@ -51,4 +62,13 @@ async function proxyToGuest(request, url) {
 
   const headers = new Headers(result.headers || {});
   return new Response(result.body ?? null, { status: result.status || 502, headers });
+}
+
+/** A page served by the guest itself; it can never service guest requests. */
+function isGuestUrl(url) {
+  try {
+    return new URL(url).pathname.startsWith(GUEST_PREFIX);
+  } catch {
+    return false;
+  }
 }
