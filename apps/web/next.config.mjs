@@ -6,7 +6,7 @@ const nextConfig = {
   images: {
     unoptimized: true,
   },
-  transpilePackages: ["@lam/sim-vm", "@lam/desktop", "@lam/finder"],
+  transpilePackages: ["@lam/sim-vm", "@lam/desktop", "@lam/finder", "@lam/sim-bridge"],
 }
 
 export default nextConfig

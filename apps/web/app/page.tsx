@@ -11,6 +11,7 @@ import {
   type WindowDescriptor,
 } from "@lam/desktop";
 import type { FinderProject } from "@lam/finder";
+import { installHostBridge } from "@lam/sim-bridge";
 import { MatrixRain } from "@/components/matrix-rain";
 import { GlitchText } from "@/components/glitch-text";
 import { TypingText } from "@/components/typing-text";
@@ -331,6 +332,11 @@ export default function HomePage() {
     openSim();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [mounted]);
+
+  // Answer data requests from the app running inside the guest. This page owns
+  // the v86 instance, so it is the only one that can; the GitHub token stays
+  // in the host's API routes.
+  useEffect(() => installHostBridge(), []);
 
   // Body scroll lock: only while a window is active (visible and focused).
   // When no window is active (deactivated, minimized, or closed), the home

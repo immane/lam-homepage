@@ -22,6 +22,12 @@ export interface FinderProps {
    * Linux) and pointed at the bridge without touching the component.
    */
   source?: string;
+  /**
+   * Alternative to `source` for environments that fetch through something
+   * other than a same-origin URL (e.g. the guest build asking the host over
+   * the sim bridge). Takes precedence over `source`.
+   */
+  loader?: () => Promise<FinderProject[]>;
   /** Window/collection title shown in the toolbar. */
   title?: string;
   /** Called when a project is opened. Defaults to opening its URL in a tab. */
@@ -40,7 +46,7 @@ interface FetchState {
 const DEFAULT_SOURCE = "/api/github";
 
 /** Dependency-free dynamic loader: fetches the project list at runtime. */
-function useProjects(source: string): FetchState {
+function useProjects(source: string, loader?: () => Promise<FinderProject[]>): FetchState {
   const [state, setState] = useState<FetchState>({
     projects: [],
     loading: true,
@@ -48,10 +54,9 @@ function useProjects(source: string): FetchState {
   });
 
   useEffect(() => {
-    // No source configured (e.g. the standalone guest build before the sim
-    // bridge is wired up): show the empty state instead of requesting the
-    // document itself, which would come back as HTML.
-    if (!source) {
+    // No source and no loader configured: show the empty state instead of
+    // requesting the document itself, which would come back as HTML.
+    if (!loader && !source) {
       setState({ projects: [], loading: false, error: null });
       return;
     }
@@ -60,18 +65,19 @@ function useProjects(source: string): FetchState {
     let active = true;
     setState({ projects: [], loading: true, error: null });
 
-    fetch(source, { signal: controller.signal })
-      .then((res) => {
-        if (!res.ok) throw new Error(`request failed (${res.status})`);
-        return res.json() as Promise<{ repos?: FinderProject[] }>;
-      })
-      .then((data) => {
+    const request: Promise<FinderProject[]> = loader
+      ? loader()
+      : fetch(source, { signal: controller.signal })
+          .then((res) => {
+            if (!res.ok) throw new Error(`request failed (${res.status})`);
+            return res.json() as Promise<{ repos?: FinderProject[] }>;
+          })
+          .then((data) => (Array.isArray(data?.repos) ? data.repos : []));
+
+    request
+      .then((projects) => {
         if (!active) return;
-        setState({
-          projects: Array.isArray(data?.repos) ? data.repos : [],
-          loading: false,
-          error: null,
-        });
+        setState({ projects, loading: false, error: null });
       })
       .catch((cause: unknown) => {
         if (!active || controller.signal.aborted) return;
@@ -86,7 +92,7 @@ function useProjects(source: string): FetchState {
       active = false;
       controller.abort();
     };
-  }, [source]);
+  }, [source, loader]);
 
   return state;
 }
@@ -112,11 +118,12 @@ function FileGlyph() {
 
 export function Finder({
   source = DEFAULT_SOURCE,
+  loader,
   title = "Projects",
   onOpenProject,
   className,
 }: FinderProps) {
-  const { projects, loading, error } = useProjects(source);
+  const { projects, loading, error } = useProjects(source, loader);
   const [selection, setSelection] = useState<Selection>({ kind: "all" });
   const [query, setQuery] = useState("");
   const [selectedId, setSelectedId] = useState<string | null>(null);
