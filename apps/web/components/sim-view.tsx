@@ -3,8 +3,15 @@
 import { useEffect, useRef, useState } from "react";
 import { createSimVm, type SimVm } from "@lam/sim-vm";
 import { probeGuest, registerGuestProxy } from "@/lib/guest-proxy";
+import { Progress } from "@/components/ui/progress";
 
 export type SimStatus = "loading" | "booting" | "running" | "error";
+
+/** Boot progress surfaced to the status bar (0-100, monospaced label). */
+export interface SimProgress {
+  value: number;
+  label: string;
+}
 
 /** Visitor-facing status copy (the emulator's own wording is an implementation detail). */
 const STATUS_MESSAGES: Record<Exclude<SimStatus, "running">, string> = {
@@ -13,7 +20,9 @@ const STATUS_MESSAGES: Record<Exclude<SimStatus, "running">, string> = {
   error: "Failed to boot the guest",
 };
 
-type Listener = (status: SimStatus, detail?: string) => void;
+const INITIAL_PROGRESS: SimProgress = { value: 0, label: "Preparing download…" };
+
+type Listener = (status: SimStatus, detail?: string, progress?: SimProgress) => void;
 
 /**
  * The emulator is a module-level singleton whose DOM lives in a detached
@@ -34,6 +43,7 @@ let boot: Promise<SimVm> | null = null;
 let refit: (() => void) | null = null;
 let status: SimStatus = "loading";
 let detail: string | undefined;
+let progress: SimProgress = INITIAL_PROGRESS;
 /** Called once when the guest reaches an interactive shell prompt. */
 let readyCallback: (() => void) | null = null;
 let announcedReady = false;
@@ -124,7 +134,131 @@ function registerSnapshotOnPageHide() {
 function emit(next: SimStatus, nextDetail?: string) {
   status = next;
   detail = nextDetail;
-  for (const listener of listeners) listener(next, nextDetail);
+  if (next === "running") {
+    progress = { value: 100, label: "Ready" };
+  }
+  for (const listener of listeners) listener(next, nextDetail, progress);
+}
+
+function emitProgress(next: SimProgress) {
+  progress = {
+    value: Math.max(0, Math.min(100, Math.round(next.value))),
+    label: next.label,
+  };
+  for (const listener of listeners) listener(status, detail, progress);
+}
+
+function formatBytes(bytes: number): string {
+  if (!Number.isFinite(bytes) || bytes < 0) return "0 B";
+  if (bytes < 1024) return `${bytes} B`;
+  if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(0)} KB`;
+  return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
+}
+
+/**
+ * Fetch a URL while reporting byte progress. Falls back to a plain
+ * `arrayBuffer()` when streaming is unavailable (e.g. jsdom tests).
+ */
+async function fetchWithProgress(
+  url: string,
+  onProgress: (loaded: number, total: number | null) => void,
+): Promise<ArrayBuffer> {
+  const res = await fetch(url);
+  if (!res.ok) throw new Error(`${url} -> ${res.status}`);
+  const totalHeader = res.headers.get("content-length");
+  const total = totalHeader ? Number(totalHeader) : NaN;
+  const knownTotal = Number.isFinite(total) && total > 0 ? total : null;
+  if (!res.body?.getReader) {
+    const buf = await res.arrayBuffer();
+    onProgress(buf.byteLength, knownTotal ?? buf.byteLength);
+    return buf;
+  }
+  const reader = res.body.getReader();
+  const chunks: Uint8Array[] = [];
+  let loaded = 0;
+  for (;;) {
+    const { done, value } = await reader.read();
+    if (done) break;
+    if (value) {
+      chunks.push(value);
+      loaded += value.byteLength;
+      onProgress(loaded, knownTotal);
+    }
+  }
+  const merged = new Uint8Array(loaded);
+  let offset = 0;
+  for (const chunk of chunks) {
+    merged.set(chunk, offset);
+    offset += chunk.byteLength;
+  }
+  onProgress(loaded, knownTotal ?? loaded);
+  return merged.buffer as ArrayBuffer;
+}
+
+/**
+ * Download several URLs in parallel, aggregating byte progress. When servers
+ * omit `content-length` the fraction falls back to completed-file counting.
+ */
+async function downloadMany(
+  urls: string[],
+  onProgress: (fraction: number, loaded: number, total: number | null) => void,
+): Promise<ArrayBuffer[]> {
+  const loadedBytes = new Array<number>(urls.length).fill(0);
+  const totalBytes = new Array<number | null>(urls.length).fill(null);
+  const report = () => {
+    const loaded = loadedBytes.reduce((sum, n) => sum + n, 0);
+    const known = totalBytes.every((n): n is number => typeof n === "number");
+    if (known) {
+      const total = totalBytes.reduce((sum, n) => sum + (n as number), 0);
+      onProgress(total > 0 ? loaded / total : 0, loaded, total);
+    } else {
+      const done = loadedBytes.filter((n, i) => totalBytes[i] !== null && n >= (totalBytes[i] as number)).length;
+      onProgress(done / urls.length, loaded, null);
+    }
+  };
+  const results = await Promise.all(
+    urls.map((url, index) =>
+      fetchWithProgress(url, (loaded, total) => {
+        loadedBytes[index] = loaded;
+        totalBytes[index] = total;
+        report();
+      }),
+    ),
+  );
+  onProgress(1, loadedBytes.reduce((sum, n) => sum + n, 0), totalBytes.every((n): n is number => typeof n === "number") ? (totalBytes as number[]).reduce((sum, n) => sum + n, 0) : null);
+  return results;
+}
+
+/**
+ * v86 boot assets served from `/sim/*`. Prefetching them here warms the HTTP
+ * cache (so v86's own fetch hits cache) and — more importantly — gives the
+ * progress bar real bytes to report instead of a spinner.
+ */
+const BOOT_ASSETS = [
+  { url: "/sim/libv86.js", name: "emulator runtime" },
+  { url: "/sim/v86.wasm", name: "wasm engine" },
+  { url: "/sim/seabios.bin", name: "bios" },
+  { url: "/sim/vgabios.bin", name: "vga bios" },
+  { url: "/sim/buildroot-bzimage68.bin", name: "linux kernel" },
+] as const;
+
+/** Prefetch boot assets; never throws — v86 will fetch directly on failure. */
+async function prefetchBootAssets(): Promise<void> {
+  emitProgress({ value: 1, label: `Downloading ${BOOT_ASSETS[0].name}…` });
+  try {
+    await downloadMany(
+      BOOT_ASSETS.map((a) => a.url),
+      (fraction, loaded, total) => {
+        // Download phase owns 0–60% of the bar; boot + provision own the rest.
+        const value = 1 + fraction * 59;
+        const size = total !== null ? ` · ${formatBytes(loaded)} / ${formatBytes(total)}` : loaded > 0 ? ` · ${formatBytes(loaded)}` : "";
+        emitProgress({ value, label: `Downloading Linux images…${size}` });
+      },
+    );
+  } catch {
+    // Slow/flaky networks still boot: v86 fetches the same URLs itself.
+    emitProgress({ value: 60, label: "Starting emulator…" });
+  }
 }
 
 function buildHost(): HTMLElement {
@@ -199,26 +333,27 @@ async function provisionGuest(
   write: (text: string) => void,
 ): Promise<void> {
   try {
-    const [busybox, footer, readme, ...bundle] = await Promise.all([
-      fetch("/sim/busybox-i686").then((res) => {
-        if (!res.ok) throw new Error(`busybox fetch ${res.status}`);
-        return res.arrayBuffer();
-      }),
-      fetch("/footer.txt").then((res) => {
-        if (!res.ok) throw new Error(`footer fetch ${res.status}`);
-        return res.text();
-      }),
-      fetch("/readme.txt").then((res) => {
-        if (!res.ok) throw new Error(`readme fetch ${res.status}`);
-        return res.text();
-      }),
-      ...GUEST_BUNDLE_FILES.map((file) =>
-        fetch(`${GUEST_BUNDLE_BASE}/${file}`).then((res) => {
-          if (!res.ok) throw new Error(`guest bundle fetch ${file} (${res.status})`);
-          return res.arrayBuffer();
-        }),
-      ),
-    ]);
+    emitProgress({ value: 86, label: "Installing guest tools…" });
+    const urls = [
+      "/sim/busybox-i686",
+      "/footer.txt",
+      "/readme.txt",
+      ...GUEST_BUNDLE_FILES.map((file) => `${GUEST_BUNDLE_BASE}/${file}`),
+    ];
+    const [busyboxBuf, footerBuf, readmeBuf, ...bundleBufs] = await downloadMany(
+      urls,
+      (fraction, loaded, total) => {
+        // Provision phase owns 85–97% of the bar.
+        const value = 85 + fraction * 12;
+        const size = total !== null ? ` · ${formatBytes(loaded)} / ${formatBytes(total)}` : loaded > 0 ? ` · ${formatBytes(loaded)}` : "";
+        emitProgress({ value, label: `Installing guest tools…${size}` });
+      },
+    );
+    const decoder = new TextDecoder();
+    const busybox = busyboxBuf;
+    const footer = decoder.decode(footerBuf);
+    const readme = decoder.decode(readmeBuf);
+    const bundle = bundleBufs;
 
     // Every file must be in the 9p share *before* the guest mounts it. The
     // guest caches the directory listing at mount time, so files written
@@ -258,10 +393,12 @@ async function provisionGuest(
 
     // Wait until the guest actually accepts connections, then hand control to
     // the window that shows the guest-served page.
+    emitProgress({ value: 97, label: "Starting guest web server…" });
     const deadline = Date.now() + 30000;
     while (Date.now() < deadline) {
       if (await probeGuest(emulator as never)) {
         write("[host] guest httpd is reachable on :80\r\n");
+        emitProgress({ value: 99, label: "Almost there…" });
         announcedServed = true;
         servedCallback?.();
         saveSnapshot();
@@ -291,6 +428,30 @@ async function ensureBoot(): Promise<SimVm> {
 
   boot = (async () => {
     const initialState = await readSnapshot();
+    // Warm the HTTP cache with real byte progress before v86 fetches the
+    // same URLs itself (its internal loader reports no progress). Restored
+    // snapshots skip the multi-MB kernel download entirely.
+    if (!initialState) {
+      await prefetchBootAssets();
+    } else {
+      emitProgress({ value: 60, label: "Restoring saved session…" });
+    }
+    emitProgress({ value: 62, label: "Starting emulator…" });
+    // The terminal library still has to load, while the guest starts booting
+    // as soon as the emulator is ready. Ease the bar toward 85% meanwhile so
+    // a slow boot never looks stuck.
+    let eased = 62;
+    const easeTimer = setInterval(() => {
+      if (announcedReady || eased >= 84) {
+        clearInterval(easeTimer);
+        return;
+      }
+      eased += 1;
+      emitProgress({
+        value: eased,
+        label: status === "booting" ? "Booting Linux…" : "Starting emulator…",
+      });
+    }, 600);
     // The stock kernel we started with has no PCI/NIC support, so host<->guest
     // networking needs v86's upstream buildroot image (modern kernel, virtio
     // NIC) with the in-browser "fetch" backend.
@@ -364,6 +525,8 @@ async function ensureBoot(): Promise<SimVm> {
       const atPrompt = /(\/root%|~%)\s*$/.test(tail);
       if (!announcedReady && atPrompt) {
         announcedReady = true;
+        clearInterval(easeTimer);
+        emitProgress({ value: 85, label: "Shell ready — installing guest tools…" });
         if (mirror !== null) {
           clearInterval(mirror);
           mirror = null;
@@ -386,9 +549,11 @@ async function ensureBoot(): Promise<SimVm> {
 
     emulator.add_listener("emulator-ready", () => {
       emit("booting");
+      emitProgress({ value: Math.max(progress.value, 68), label: "Booting Linux…" });
       refit?.();
     });
     emulator.add_listener("emulator-started", () => {
+      clearInterval(easeTimer);
       emit("running");
       refit?.();
       if (initialState) {
@@ -486,14 +651,16 @@ export function SimView({
   const slot = useRef<HTMLDivElement>(null);
   const [current, setCurrent] = useState<SimStatus>(status);
   const [currentDetail, setCurrentDetail] = useState<string | undefined>(detail);
+  const [bootProgress, setBootProgress] = useState<SimProgress>(progress);
 
   useEffect(() => {
     readyCallback = onReady ?? null;
     readmeCompleteCallback = onReadmeComplete ?? null;
     servedCallback = onServed ?? null;
-    const listener: Listener = (next, nextDetail) => {
+    const listener: Listener = (next, nextDetail, nextProgress) => {
       setCurrent(next);
       setCurrentDetail(nextDetail);
+      if (nextProgress) setBootProgress({ ...nextProgress });
     };
     listeners.add(listener);
     void ensureBoot().catch(() => {
@@ -521,15 +688,31 @@ export function SimView({
 
   return (
     <div className="sim-shell">
-      {/* The status line would otherwise steal vertical space from the
-          console; once the guest is up the terminal owns the full window. */}
+      {/* Boot progress: determinate bar with byte counts while downloading,
+          easing through boot/provision; hidden once the guest is up so the
+          terminal owns the full window. */}
       {current !== "running" && (
-        <div className="sim-statusbar">
-          <span className="sim-status-dot" data-state={current} aria-hidden />
-          <span>
-            {STATUS_MESSAGES[current]}
-            {currentDetail ? ` — ${currentDetail}` : ""}
-          </span>
+        <div className="sim-boot" role="status" aria-label="Simulator loading progress">
+          <div className="sim-statusbar">
+            <span className="sim-status-dot" data-state={current} aria-hidden />
+            <span className="sim-boot-message">
+              {STATUS_MESSAGES[current]}
+              {currentDetail ? ` — ${currentDetail}` : ""}
+            </span>
+            <span className="sim-boot-percent" aria-hidden>
+              {current === "error" ? "" : `${bootProgress.value}%`}
+            </span>
+          </div>
+          {current !== "error" && (
+            <>
+              <Progress
+                value={bootProgress.value}
+                className="sim-boot-bar"
+                aria-label={bootProgress.label}
+              />
+              <div className="sim-boot-label">{bootProgress.label}</div>
+            </>
+          )}
         </div>
       )}
       <div className="sim-slot" ref={slot} />

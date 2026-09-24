@@ -351,6 +351,13 @@ html {
 .sim-status-dot { width: 8px; height: 8px; flex: none; border-radius: 50%; background: #febc2e; box-shadow: 0 0 8px color-mix(in oklch, #febc2e 55%, transparent); }
 .sim-status-dot[data-state="running"] { background: #28c840; box-shadow: 0 0 8px color-mix(in oklch, #28c840 55%, transparent); }
 .sim-status-dot[data-state="error"] { background: #ff5f57; box-shadow: 0 0 8px color-mix(in oklch, #ff5f57 55%, transparent); }
+/* Boot progress panel: determinate bar + byte counts so a ~14MB cold boot
+   never looks stuck. Hidden once running (terminal owns the full window). */
+.sim-boot { display: flex; flex: none; flex-direction: column; gap: 6px; padding: 10px 12px 12px; background: #000; }
+.sim-boot-message { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.sim-boot-percent { flex: none; color: var(--primary); font-variant-numeric: tabular-nums; }
+.sim-boot-bar { height: 6px; }
+.sim-boot-label { color: color-mix(in oklch, var(--muted-foreground) 80%, transparent); font-family: var(--font-mono); font-size: 11px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .sim-slot { display: flex; flex: 1; min-height: 0; padding: 0; }
 .sim-term-host { flex: 1; min-height: 0; padding: 4px 6px 6px; background: #000; }
 /* Hidden VGA screen: exists only so v86 maintains the text buffer that we
