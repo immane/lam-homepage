@@ -53,6 +53,8 @@ const mocks = vi.hoisted(() => {
       calls.serialSend.length = 0;
       calls.createSimVm = 0;
       calls.createOptions = undefined;
+      mocks.emulator.create_file.mockClear();
+      mocks.emulator.read_file.mockClear();
       onData = undefined;
     },
   };
@@ -158,6 +160,38 @@ describe("SimView", () => {
     await waitFor(() => expect(mocks.calls.createSimVm).toBe(1));
     expect(mocks.calls.createOptions).not.toHaveProperty("initialState");
     expect(mocks.emulator).not.toHaveProperty("save_state");
+  });
+
+  it("starts the in-guest backup daemon once and never injects per-command saves", async () => {
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async () => ({
+        ok: true,
+        headers: { get: () => null },
+        arrayBuffer: async () => new ArrayBuffer(8),
+      })),
+    );
+    try {
+      await renderSimView();
+      await waitFor(() => expect(mocks.calls.createSimVm).toBe(1));
+      emitSerial("(none) login: ");
+      emitSerial("\r\n/root% ");
+      await waitFor(() =>
+        expect(
+          mocks.emulator.create_file.mock.calls
+            .map((call) => (call as unknown[])[0])
+            .includes("/guest-backup.sh"),
+        ).toBe(true),
+      );
+      const sendsAfterBoot = mocks.calls.serialSend.length;
+      emitSerial("echo hi\r\n/root% ");
+      emitSerial("echo again\r\n/root% ");
+      const injected = mocks.calls.serialSend.slice(sendsAfterBoot).join("\n");
+      expect(injected).not.toContain("guest-backup");
+      expect(injected).not.toContain("save-root");
+    } finally {
+      vi.unstubAllGlobals();
+    }
   });
 
   it("keeps the loading status visible after the emulator starts booting", async () => {

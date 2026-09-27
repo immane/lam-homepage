@@ -57,21 +57,42 @@ let emulatorRef: SimVm["emulator"] | null = null;
 const listeners = new Set<Listener>();
 let restoreCompleteCallback: (() => void) | null = null;
 const GUEST_ARCHIVE_PATH = "/guest-root-v2.tar.gz";
+const GUEST_SEQ_PATH = "/guest-root-v2.seq";
 const MAX_GUEST_ARCHIVE_BYTES = 32 * 1024 * 1024;
+const FILE_WATCH_INTERVAL_MS = 5000;
 let fileRestoreStarted = false;
-let fileSaveInFlight = false;
-let fileSavePending = false;
-let guestServed = false;
-let guestSaveSequence = 0;
-let userCommandPending = false;
-let hiddenSerialCommandEcho = "";
-const SAVE_SCRIPT = [
+let fileWatcherStarted = false;
+let fileWatcherInFlight = false;
+let lastArchiveSeq: string | null = null;
+/**
+ * Runs inside the guest for the whole session: watches /root for changes and
+ * publishes a compressed archive plus a sequence number to the 9p share. The
+ * host only polls the sequence number, so no backup commands are ever injected
+ * into the visitor's interactive shell after boot.
+ */
+const GUEST_BACKUP_SCRIPT = [
   "#!/bin/sh",
-  "archive=/tmp/guest-root-v2.tar.gz",
-  "rm -f \"$archive\"",
-  "/opt/busybox tar -czf \"$archive\" -C /root . || exit 1",
-  "cp \"$archive\" /mnt/guest-root-v2.tar.gz || exit 1",
-  "printf '%s' \"$1\" > \"/mnt/$1.done\"",
+  "INTERVAL=15",
+  "STATE=/tmp/lam-guest-backup.sig",
+  "TMP_ARCHIVE=/tmp/guest-root-v2.tar.gz",
+  "SHARE_ARCHIVE=/mnt/guest-root-v2.tar.gz",
+  "SEQ_FILE=/mnt/guest-root-v2.seq",
+  "SEQ=0",
+  "sig() { /opt/busybox find /root -type f -exec /opt/busybox stat -c '%n %s %Y' {} + 2>/dev/null | /opt/busybox sort 2>/dev/null | /opt/busybox md5sum 2>/dev/null; }",
+  "mkdir -p /root /mnt",
+  "sig > \"$STATE\" 2>/dev/null",
+  "while true; do",
+  "  sleep \"$INTERVAL\"",
+  "  NEW_SIG=\"$(sig)\"",
+  "  OLD_SIG=\"$(cat \"$STATE\" 2>/dev/null)\"",
+  "  if [ \"$NEW_SIG\" != \"$OLD_SIG\" ]; then",
+  "    if /opt/busybox tar -czf \"$TMP_ARCHIVE\" -C /root . 2>/dev/null && cp \"$TMP_ARCHIVE\" \"$SHARE_ARCHIVE\" 2>/dev/null; then",
+  "      SEQ=$((SEQ+1))",
+  "      printf '%s' \"$SEQ\" > \"$SEQ_FILE\" 2>/dev/null",
+  "      printf '%s' \"$NEW_SIG\" > \"$STATE\" 2>/dev/null",
+  "    fi",
+  "  fi",
+  "done",
   "",
 ].join("\n");
 function emit(next: SimStatus, nextDetail?: string) {
@@ -302,7 +323,7 @@ async function provisionGuest(
     // guest caches the directory listing at mount time, so files written
     // afterwards never show up in /mnt — the mount has to be the last step.
     await emulator.create_file("/busybox", new Uint8Array(busybox));
-    await emulator.create_file("/save-root.sh", new TextEncoder().encode(SAVE_SCRIPT));
+    await emulator.create_file("/guest-backup.sh", new TextEncoder().encode(GUEST_BACKUP_SCRIPT));
     // Each bundle file lands at a flat "/guest-<name>" slot on the 9p share;
     // the guest copies them into /www with the right sub-directories.
     for (let index = 0; index < GUEST_BUNDLE_FILES.length; index += 1) {
@@ -325,17 +346,22 @@ async function provisionGuest(
         // busybox only treats argv[1] as the applet when it is invoked as
         // "busybox", so it must be installed under that exact name.
         "cp /mnt/busybox /opt/busybox && chmod +x /opt/busybox",
-        "cp /mnt/save-root.sh /opt/save-root.sh",
+        "cp /mnt/guest-backup.sh /opt/guest-backup.sh",
         "cp /mnt/footer.txt ~/footer.txt",
         "cp /mnt/readme.txt ~/readme.txt",
         ...GUEST_BUNDLE_FILES.map(
           (file) => `cp /mnt/guest-${file.replace("/", "-")} /www/${file}`,
         ),
+        // Start the in-guest file watcher once, at boot. It archives /root to
+        // the 9p share on its own cadence; the host only polls for new
+        // archives and never injects backup commands into the shell again.
+        "sh /opt/guest-backup.sh </dev/null >/dev/null 2>&1 &",
         "/opt/busybox httpd -h /www -p 80",
         "echo '[guest] httpd listening on :80'",
         "",
       ].join("\n"),
     );
+    startGuestFileWatcher(emulator);
 
     // Wait until the guest actually accepts connections, then hand control to
     // the window that shows the guest-served page.
@@ -345,7 +371,6 @@ async function provisionGuest(
       if (await probeGuest(emulator as never)) {
         write("[host] guest httpd is reachable on :80\r\n");
         emit("running");
-        guestServed = true;
         servedCallback?.();
         // The welcome text is the final startup command. Only commands typed
         // by the visitor trigger a file backup; boot-time prompts do not.
@@ -396,59 +421,36 @@ async function restoreGuestFiles(emulator: SimVm["emulator"]): Promise<void> {
   }
 }
 
-/** Persist /root after a visitor command, without driving the boot shell. */
-function saveGuestFiles(emulator: SimVm["emulator"]) {
-  if (fileSaveInFlight) {
-    fileSavePending = true;
-    return;
-  }
-  fileSaveInFlight = true;
-  const token = `guest-root-v2-${Date.now()}-${guestSaveSequence++}`;
-  const donePath = `/${token}.done`;
-  // A short command keeps the interactive serial line responsive. The worker
-  // closes stdin and redirects stdout/stderr, so it cannot steal terminal I/O.
-  void emulator.create_file(donePath, new TextEncoder().encode("pending"))
-    .then(() => {
-      const command = `set +m; sh /opt/save-root.sh ${token} </dev/null >/dev/null 2>&1 &`;
-      hiddenSerialCommandEcho = command;
-      emulator.serial0_send(`${command}\n`);
-      return collectGuestArchive(emulator, donePath, token);
-    })
-    .catch((cause: unknown) => {
-      fileSaveInFlight = false;
-      console.warn("Could not start guest file backup", cause);
-    });
-}
-
-/** Poll the host-side 9p filesystem; do not use the interactive serial stream. */
-async function collectGuestArchive(emulator: SimVm["emulator"], donePath: string, token: string) {
-  const deadline = Date.now() + 60_000;
-  let archive: Uint8Array | undefined;
-  while (Date.now() < deadline) {
+/** Persist archives published by the in-guest watcher to IndexedDB. */
+function startGuestFileWatcher(emulator: SimVm["emulator"]) {
+  if (fileWatcherStarted) return;
+  fileWatcherStarted = true;
+  const check = async () => {
+    if (fileWatcherInFlight) return;
+    fileWatcherInFlight = true;
     try {
-      if (new TextDecoder().decode(await emulator.read_file(donePath)) === token) {
-        archive = await emulator.read_file(GUEST_ARCHIVE_PATH);
-        break;
+      let seq: string;
+      try {
+        seq = new TextDecoder().decode(await emulator.read_file(GUEST_SEQ_PATH));
+      } catch {
+        return; // The guest watcher has not published anything yet.
+      } finally {
+        fileWatcherInFlight = false;
       }
-    } catch {
-      // Guest has not finished writing the archive yet.
+      if (!seq || seq === lastArchiveSeq) return;
+      const archive = await emulator.read_file(GUEST_ARCHIVE_PATH);
+      if (archive.byteLength > MAX_GUEST_ARCHIVE_BYTES) {
+        console.warn("Guest /root archive exceeds the 32 MiB persistence limit");
+      } else {
+        await writeGuestFiles(archive);
+      }
+      lastArchiveSeq = seq;
+    } catch (cause) {
+      console.warn("Could not save guest files", cause);
     }
-    await new Promise((resolve) => setTimeout(resolve, 250));
-  }
-
-  if (!archive) {
-    console.warn("Timed out saving guest files");
-  } else if (archive.byteLength > MAX_GUEST_ARCHIVE_BYTES) {
-    console.warn("Guest /root archive exceeds the 32 MiB persistence limit");
-  } else {
-    await writeGuestFiles(archive);
-  }
-
-  fileSaveInFlight = false;
-  if (fileSavePending) {
-    fileSavePending = false;
-    saveGuestFiles(emulator);
-  }
+  };
+  void check();
+  setInterval(() => void check(), FILE_WATCH_INTERVAL_MS);
 }
 
 async function ensureBoot(): Promise<SimVm> {
@@ -514,11 +516,6 @@ async function ensureBoot(): Promise<SimVm> {
     let tail = "";
     let loggedIn = false;
     let mirror: ReturnType<typeof setInterval> | null = null;
-    let hiddenCommandEcho = "";
-    let hiddenCommandEchoOffset = 0;
-    let hideEchoLineEnding = false;
-    let hideNextInjectedPrompt = false;
-    let injectedPromptBuffer = "";
 
     // Serial arrives byte by byte. Decode the live stream as UTF-8 (streaming
     // so multi-byte characters split across events are handled) instead of
@@ -534,58 +531,8 @@ async function ensureBoot(): Promise<SimVm> {
     emulator.add_listener("serial0-output-byte", (byte) => {
       const char = String.fromCharCode(byte);
       const decoded = liveDecoder.decode(new Uint8Array([byte]), { stream: true });
-      if (hiddenSerialCommandEcho && !hiddenCommandEcho) {
-        hiddenCommandEcho = hiddenSerialCommandEcho;
-        hiddenSerialCommandEcho = "";
-        hiddenCommandEchoOffset = 0;
-      }
-      let displayText = decoded;
-      if (hiddenCommandEcho) {
-        // The guest serial console inserts CR/LF when a long echoed line wraps
-        // at the terminal width. Ignore those while matching the injected line.
-        if (char === "\r" || char === "\n") {
-          displayText = "";
-        } else if (char === hiddenCommandEcho[hiddenCommandEchoOffset]) {
-          hiddenCommandEchoOffset += 1;
-          displayText = "";
-          if (hiddenCommandEchoOffset === hiddenCommandEcho.length) {
-            hiddenCommandEcho = "";
-            hideEchoLineEnding = true;
-            hideNextInjectedPrompt = true;
-          }
-        } else {
-          // Fail open if output does not match the injected command exactly.
-          displayText = hiddenCommandEcho.slice(0, hiddenCommandEchoOffset) + decoded;
-          hiddenCommandEcho = "";
-          hideEchoLineEnding = false;
-        }
-      } else if (hideEchoLineEnding && (char === "\r" || char === "\n")) {
-        displayText = "";
-      } else {
-        hideEchoLineEnding = false;
-      }
-      if (hideNextInjectedPrompt && displayText) {
-        if (char === "\r" || char === "\n") {
-          displayText = "";
-        } else {
-          injectedPromptBuffer += decoded;
-          if (["# ", "~% ", "/root% "].some((prompt) => injectedPromptBuffer.endsWith(prompt))) {
-            displayText = "";
-            hideNextInjectedPrompt = false;
-            injectedPromptBuffer = "";
-          } else if (injectedPromptBuffer.length <= 160) {
-            displayText = "";
-          } else {
-            displayText = injectedPromptBuffer;
-            hideNextInjectedPrompt = false;
-            injectedPromptBuffer = "";
-          }
-        }
-      }
-      if (displayText) {
-        if (terminalWrite) terminalWrite(displayText);
-        else buffered.push(...new TextEncoder().encode(displayText));
-      }
+      if (terminalWrite) terminalWrite(decoded);
+      else buffered.push(byte);
       rawLog.push(char);
       if (rawLog.length > 400000) rawLog.splice(0, 200000);
 
@@ -623,9 +570,6 @@ async function ensureBoot(): Promise<SimVm> {
             // before provisioning starts sending the next command batch.
             window.setTimeout(() => void provisionGuest(emulator, writeOut), 0);
           });
-      } else if (announcedReady && atPrompt && guestServed && userCommandPending) {
-        userCommandPending = false;
-        saveGuestFiles(emulator);
       }
     });
 
@@ -670,10 +614,7 @@ async function ensureBoot(): Promise<SimVm> {
       }
     }
 
-    terminal.onData((data) => {
-      if (data.includes("\r") || data.includes("\n")) userCommandPending = true;
-      emulator.serial0_send(data);
-    });
+    terminal.onData((data) => emulator.serial0_send(data));
 
     if (typeof window !== "undefined") {
       (window as unknown as { __lamTerm?: unknown }).__lamTerm = terminal;
