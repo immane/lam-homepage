@@ -20,6 +20,8 @@ const mocks = vi.hoisted(() => {
       listeners.set(event, cb);
     },
     serial0_send: (data: string) => calls.serialSend.push(data),
+    create_file: vi.fn(async () => undefined),
+    read_file: vi.fn(async () => new Uint8Array()),
   };
 
   const Terminal = class {
@@ -104,6 +106,19 @@ describe("SimView", () => {
     expect(container.querySelector(".sim-screen")).toBeNull();
   });
 
+  it("restores the same emulator and terminal after the window is minimized", async () => {
+    const { SimView } = await import("@/components/sim-view");
+    const first = render(<SimView />);
+    await waitFor(() => expect(mocks.calls.createSimVm).toBe(1));
+    const terminalHost = first.container.querySelector(".sim-term-host");
+    expect(terminalHost).not.toBeNull();
+
+    first.unmount();
+    const restored = render(<SimView />);
+    expect(mocks.calls.createSimVm).toBe(1);
+    expect(restored.container.querySelector(".sim-term-host")).toBe(terminalHost);
+  });
+
   it("forwards serial output into the terminal (kernel log + shell)", async () => {
     await renderSimView();
     await waitFor(() => expect(mocks.calls.createSimVm).toBe(1));
@@ -145,11 +160,11 @@ describe("SimView", () => {
     expect(mocks.emulator).not.toHaveProperty("save_state");
   });
 
-  it("hides the status line once running (terminal takes full height)", async () => {
+  it("keeps the loading status visible after the emulator starts booting", async () => {
     await renderSimView();
     await waitFor(() => expect(mocks.calls.createSimVm).toBe(1));
     expect(screen.getByText(/Loading Linux images/)).toBeInTheDocument();
     mocks.listeners.get("emulator-started")?.(undefined);
-    await waitFor(() => expect(screen.queryByText(/Loading Linux images/)).toBeNull());
+    expect(screen.getByText(/Loading Linux images/)).toBeInTheDocument();
   });
 });

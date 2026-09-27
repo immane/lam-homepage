@@ -3,6 +3,7 @@
 import { useEffect, useRef, useState } from "react";
 import { createSimVm, type SimVm } from "@lam/sim-vm";
 import { probeGuest, registerGuestProxy } from "@/lib/guest-proxy";
+import { readGuestFiles, writeGuestFiles } from "@/lib/guest-file-storage";
 import { Progress } from "@/components/ui/progress";
 
 export type SimStatus = "loading" | "booting" | "running" | "error";
@@ -54,6 +55,25 @@ let awaitingReadmeCompletion = false;
 let servedCallback: (() => void) | null = null;
 let emulatorRef: SimVm["emulator"] | null = null;
 const listeners = new Set<Listener>();
+let restoreCompleteCallback: (() => void) | null = null;
+const GUEST_ARCHIVE_PATH = "/guest-root-v2.tar.gz";
+const MAX_GUEST_ARCHIVE_BYTES = 32 * 1024 * 1024;
+let fileRestoreStarted = false;
+let fileSaveInFlight = false;
+let fileSavePending = false;
+let guestServed = false;
+let guestSaveSequence = 0;
+let userCommandPending = false;
+let hiddenSerialCommandEcho = "";
+const SAVE_SCRIPT = [
+  "#!/bin/sh",
+  "archive=/tmp/guest-root-v2.tar.gz",
+  "rm -f \"$archive\"",
+  "/opt/busybox tar -czf \"$archive\" -C /root . || exit 1",
+  "cp \"$archive\" /mnt/guest-root-v2.tar.gz || exit 1",
+  "printf '%s' \"$1\" > \"/mnt/$1.done\"",
+  "",
+].join("\n");
 function emit(next: SimStatus, nextDetail?: string) {
   status = next;
   detail = nextDetail;
@@ -282,6 +302,7 @@ async function provisionGuest(
     // guest caches the directory listing at mount time, so files written
     // afterwards never show up in /mnt — the mount has to be the last step.
     await emulator.create_file("/busybox", new Uint8Array(busybox));
+    await emulator.create_file("/save-root.sh", new TextEncoder().encode(SAVE_SCRIPT));
     // Each bundle file lands at a flat "/guest-<name>" slot on the 9p share;
     // the guest copies them into /www with the right sub-directories.
     for (let index = 0; index < GUEST_BUNDLE_FILES.length; index += 1) {
@@ -295,6 +316,7 @@ async function provisionGuest(
     emulator.serial0_send(
       [
         "mkdir -p /www/assets /opt",
+        "export PS1='\\033[1;32mlam\\033[0m@\\033[1;36mv86\\033[0m:\\033[1;34m\\w\\033[0m # '",
         // Mount only now, so the guest sees all the files above.
         "ifconfig eth0 up",
         "udhcpc -i eth0 -n -q -t 8 >/dev/null 2>&1",
@@ -303,6 +325,7 @@ async function provisionGuest(
         // busybox only treats argv[1] as the applet when it is invoked as
         // "busybox", so it must be installed under that exact name.
         "cp /mnt/busybox /opt/busybox && chmod +x /opt/busybox",
+        "cp /mnt/save-root.sh /opt/save-root.sh",
         "cp /mnt/footer.txt ~/footer.txt",
         "cp /mnt/readme.txt ~/readme.txt",
         ...GUEST_BUNDLE_FILES.map(
@@ -321,21 +344,110 @@ async function provisionGuest(
     while (Date.now() < deadline) {
       if (await probeGuest(emulator as never)) {
         write("[host] guest httpd is reachable on :80\r\n");
-        emitProgress({ value: 99, label: "Almost there…" });
+        emit("running");
+        guestServed = true;
         servedCallback?.();
-        // Boot is fully done: greet the visitor with the README, the way a
-        // freshly provisioned box would.
-        // The record separator is intercepted below. It arrives only after
-        // `cat` has written every README byte to the serial stream.
+        // The welcome text is the final startup command. Only commands typed
+        // by the visitor trigger a file backup; boot-time prompts do not.
         awaitingReadmeCompletion = true;
-        emulator.serial0_send("clear; cat ~/readme.txt; printf '\\x1e'\n");
+        emulator.serial0_send("clear; cat ~/readme.txt\n");
         return;
       }
       await new Promise((resolve) => setTimeout(resolve, 1000));
     }
     write("[host] guest httpd did not become reachable\r\n");
+    // The shell is usable even if starting its HTTP service timed out.
+    emit("running");
   } catch (cause) {
     write(`\r\n[host] provisioning failed: ${cause instanceof Error ? cause.message : String(cause)}\r\n`);
+    // Provisioning the optional project web server must not label a usable
+    // Linux shell as a failed emulator boot.
+    emit("running");
+  }
+}
+
+/** Restore only guest files (never CPU or device state) from the browser. */
+async function restoreGuestFiles(emulator: SimVm["emulator"]): Promise<void> {
+  if (fileRestoreStarted) return;
+  fileRestoreStarted = true;
+  const archive = await readGuestFiles();
+  if (!archive?.byteLength) return;
+
+  try {
+    emitProgress({ value: 85, label: "Restoring saved guest files…" });
+    await emulator.create_file(GUEST_ARCHIVE_PATH, archive);
+    await new Promise<void>((resolve, reject) => {
+      const timeout = window.setTimeout(() => {
+        restoreCompleteCallback = null;
+        reject(new Error("Timed out restoring saved guest files"));
+      }, 30_000);
+      restoreCompleteCallback = () => {
+        window.clearTimeout(timeout);
+        restoreCompleteCallback = null;
+        resolve();
+      };
+      emulator.serial0_send(
+        "mkdir -p /root /mnt; mount -t 9p -o trans=virtio,version=9p2000.L host9p /mnt 2>/dev/null || mount -t 9p host9p /mnt 2>/dev/null; gzip -dc /mnt/guest-root-v2.tar.gz | tar -xf - -C /root; rm -f /mnt/guest-root-v2.tar.gz\n",
+      );
+    });
+  } catch (cause) {
+    // A bad or unsupported archive must not prevent the guest from booting.
+    console.warn("Could not restore saved guest files", cause);
+  }
+}
+
+/** Persist /root after a visitor command, without driving the boot shell. */
+function saveGuestFiles(emulator: SimVm["emulator"]) {
+  if (fileSaveInFlight) {
+    fileSavePending = true;
+    return;
+  }
+  fileSaveInFlight = true;
+  const token = `guest-root-v2-${Date.now()}-${guestSaveSequence++}`;
+  const donePath = `/${token}.done`;
+  // A short command keeps the interactive serial line responsive. The worker
+  // closes stdin and redirects stdout/stderr, so it cannot steal terminal I/O.
+  void emulator.create_file(donePath, new TextEncoder().encode("pending"))
+    .then(() => {
+      const command = `set +m; sh /opt/save-root.sh ${token} </dev/null >/dev/null 2>&1 &`;
+      hiddenSerialCommandEcho = command;
+      emulator.serial0_send(`${command}\n`);
+      return collectGuestArchive(emulator, donePath, token);
+    })
+    .catch((cause: unknown) => {
+      fileSaveInFlight = false;
+      console.warn("Could not start guest file backup", cause);
+    });
+}
+
+/** Poll the host-side 9p filesystem; do not use the interactive serial stream. */
+async function collectGuestArchive(emulator: SimVm["emulator"], donePath: string, token: string) {
+  const deadline = Date.now() + 60_000;
+  let archive: Uint8Array | undefined;
+  while (Date.now() < deadline) {
+    try {
+      if (new TextDecoder().decode(await emulator.read_file(donePath)) === token) {
+        archive = await emulator.read_file(GUEST_ARCHIVE_PATH);
+        break;
+      }
+    } catch {
+      // Guest has not finished writing the archive yet.
+    }
+    await new Promise((resolve) => setTimeout(resolve, 250));
+  }
+
+  if (!archive) {
+    console.warn("Timed out saving guest files");
+  } else if (archive.byteLength > MAX_GUEST_ARCHIVE_BYTES) {
+    console.warn("Guest /root archive exceeds the 32 MiB persistence limit");
+  } else {
+    await writeGuestFiles(archive);
+  }
+
+  fileSaveInFlight = false;
+  if (fileSavePending) {
+    fileSavePending = false;
+    saveGuestFiles(emulator);
   }
 }
 
@@ -402,6 +514,11 @@ async function ensureBoot(): Promise<SimVm> {
     let tail = "";
     let loggedIn = false;
     let mirror: ReturnType<typeof setInterval> | null = null;
+    let hiddenCommandEcho = "";
+    let hiddenCommandEchoOffset = 0;
+    let hideEchoLineEnding = false;
+    let hideNextInjectedPrompt = false;
+    let injectedPromptBuffer = "";
 
     // Serial arrives byte by byte. Decode the live stream as UTF-8 (streaming
     // so multi-byte characters split across events are handled) instead of
@@ -415,15 +532,60 @@ async function ensureBoot(): Promise<SimVm> {
     }
 
     emulator.add_listener("serial0-output-byte", (byte) => {
-      if (byte === 30 && awaitingReadmeCompletion) {
-        awaitingReadmeCompletion = false;
-        // Give xterm a frame to flush the final README bytes before hiding.
-        window.setTimeout(() => readmeCompleteCallback?.(), 100);
-        return;
-      }
       const char = String.fromCharCode(byte);
-      if (terminalWrite) terminalWrite(liveDecoder.decode(new Uint8Array([byte]), { stream: true }));
-      else buffered.push(byte);
+      const decoded = liveDecoder.decode(new Uint8Array([byte]), { stream: true });
+      if (hiddenSerialCommandEcho && !hiddenCommandEcho) {
+        hiddenCommandEcho = hiddenSerialCommandEcho;
+        hiddenSerialCommandEcho = "";
+        hiddenCommandEchoOffset = 0;
+      }
+      let displayText = decoded;
+      if (hiddenCommandEcho) {
+        // The guest serial console inserts CR/LF when a long echoed line wraps
+        // at the terminal width. Ignore those while matching the injected line.
+        if (char === "\r" || char === "\n") {
+          displayText = "";
+        } else if (char === hiddenCommandEcho[hiddenCommandEchoOffset]) {
+          hiddenCommandEchoOffset += 1;
+          displayText = "";
+          if (hiddenCommandEchoOffset === hiddenCommandEcho.length) {
+            hiddenCommandEcho = "";
+            hideEchoLineEnding = true;
+            hideNextInjectedPrompt = true;
+          }
+        } else {
+          // Fail open if output does not match the injected command exactly.
+          displayText = hiddenCommandEcho.slice(0, hiddenCommandEchoOffset) + decoded;
+          hiddenCommandEcho = "";
+          hideEchoLineEnding = false;
+        }
+      } else if (hideEchoLineEnding && (char === "\r" || char === "\n")) {
+        displayText = "";
+      } else {
+        hideEchoLineEnding = false;
+      }
+      if (hideNextInjectedPrompt && displayText) {
+        if (char === "\r" || char === "\n") {
+          displayText = "";
+        } else {
+          injectedPromptBuffer += decoded;
+          if (["# ", "~% ", "/root% "].some((prompt) => injectedPromptBuffer.endsWith(prompt))) {
+            displayText = "";
+            hideNextInjectedPrompt = false;
+            injectedPromptBuffer = "";
+          } else if (injectedPromptBuffer.length <= 160) {
+            displayText = "";
+          } else {
+            displayText = injectedPromptBuffer;
+            hideNextInjectedPrompt = false;
+            injectedPromptBuffer = "";
+          }
+        }
+      }
+      if (displayText) {
+        if (terminalWrite) terminalWrite(displayText);
+        else buffered.push(...new TextEncoder().encode(displayText));
+      }
       rawLog.push(char);
       if (rawLog.length > 400000) rawLog.splice(0, 200000);
 
@@ -434,7 +596,17 @@ async function ensureBoot(): Promise<SimVm> {
         return;
       }
       // The serial shell is interactive once it prints its prompt.
-      const atPrompt = /(\/root%|~%)\s*$/.test(tail);
+      const plainTail = tail.replace(/\x1b\[[0-9;]*m/g, "");
+      const atPrompt = /(?:\/root|~)[%#] $/.test(plainTail) || /# $/.test(plainTail);
+      if (atPrompt) {
+        restoreCompleteCallback?.();
+        if (awaitingReadmeCompletion) {
+          awaitingReadmeCompletion = false;
+          // The prompt follows the completed `cat`; no trailing shell command
+          // is needed as a completion sentinel.
+          window.setTimeout(() => readmeCompleteCallback?.(), 100);
+        }
+      }
       if (!announcedReady && atPrompt) {
         announcedReady = true;
         clearInterval(easeTimer);
@@ -444,7 +616,16 @@ async function ensureBoot(): Promise<SimVm> {
           mirror = null;
         }
         readyCallback?.();
-        void provisionGuest(emulator, writeOut);
+        void restoreGuestFiles(emulator)
+          .catch((cause) => console.warn("Could not restore guest files", cause))
+          .finally(() => {
+            // Let the shell finish the restore command and print its prompt
+            // before provisioning starts sending the next command batch.
+            window.setTimeout(() => void provisionGuest(emulator, writeOut), 0);
+          });
+      } else if (announcedReady && atPrompt && guestServed && userCommandPending) {
+        userCommandPending = false;
+        saveGuestFiles(emulator);
       }
     });
 
@@ -455,7 +636,6 @@ async function ensureBoot(): Promise<SimVm> {
     });
     emulator.add_listener("emulator-started", () => {
       clearInterval(easeTimer);
-      emit("running");
       refit?.();
     });
 
@@ -490,7 +670,10 @@ async function ensureBoot(): Promise<SimVm> {
       }
     }
 
-    terminal.onData((data) => emulator.serial0_send(data));
+    terminal.onData((data) => {
+      if (data.includes("\r") || data.includes("\n")) userCommandPending = true;
+      emulator.serial0_send(data);
+    });
 
     if (typeof window !== "undefined") {
       (window as unknown as { __lamTerm?: unknown }).__lamTerm = terminal;
