@@ -316,7 +316,7 @@ async function provisionGuest(
     emulator.serial0_send(
       [
         "mkdir -p /www/assets /opt",
-        "export PS1='\\033[1;32mlam\\033[0m@\\033[1;36mv86\\033[0m:\\033[1;34m\\w\\033[0m # '",
+        "export PS1='\\[\\033[1;32m\\]lam\\[\\033[0m\\]@\\[\\033[1;36m\\]v86\\[\\033[0m\\]:\\[\\033[1;34m\\]\\w\\[\\033[0m\\] # '",
         // Mount only now, so the guest sees all the files above.
         "ifconfig eth0 up",
         "udhcpc -i eth0 -n -q -t 8 >/dev/null 2>&1",
