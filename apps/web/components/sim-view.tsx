@@ -52,85 +52,8 @@ let readmeCompleteCallback: (() => void) | null = null;
 let awaitingReadmeCompletion = false;
 /** Called once the guest is serving HTTP on port 80. */
 let servedCallback: (() => void) | null = null;
-let announcedServed = false;
 let emulatorRef: SimVm["emulator"] | null = null;
 const listeners = new Set<Listener>();
-const SNAPSHOT_DB = "lam-linux-sim";
-const SNAPSHOT_STORE = "snapshots";
-// Bump this whenever provisioning changes so stale snapshots re-provision
-// instead of resuming without the new files.
-const SNAPSHOT_KEY = "buildroot-bzimage68-v8";
-const SNAPSHOT_INTERVAL_MS = 60_000;
-const COMMAND_SNAPSHOT_DELAY_MS = 250;
-const COMMAND_SNAPSHOT_MIN_INTERVAL_MS = 5_000;
-let snapshotInFlight = false;
-let lastSnapshotStartedAt = 0;
-let snapshotPageHideRegistered = false;
-
-type StatefulEmulator = SimVm["emulator"] & {
-  save_state(callback: (error: Error | null, state?: ArrayBuffer) => void): void;
-};
-
-function openSnapshotDb(): Promise<IDBDatabase | null> {
-  if (typeof indexedDB === "undefined") return Promise.resolve(null);
-  return new Promise((resolve) => {
-    const request = indexedDB.open(SNAPSHOT_DB, 1);
-    request.onupgradeneeded = () => request.result.createObjectStore(SNAPSHOT_STORE);
-    request.onsuccess = () => resolve(request.result);
-    request.onerror = () => resolve(null);
-  });
-}
-
-async function readSnapshot(): Promise<ArrayBuffer | undefined> {
-  const db = await openSnapshotDb();
-  if (!db) return undefined;
-  return new Promise((resolve) => {
-    const request = db.transaction(SNAPSHOT_STORE, "readonly").objectStore(SNAPSHOT_STORE).get(SNAPSHOT_KEY);
-    request.onsuccess = () => {
-      db.close();
-      resolve(request.result instanceof ArrayBuffer ? request.result : undefined);
-    };
-    request.onerror = () => {
-      db.close();
-      resolve(undefined);
-    };
-  });
-}
-
-async function writeSnapshot(state: ArrayBuffer): Promise<void> {
-  const db = await openSnapshotDb();
-  if (!db) return;
-  await new Promise<void>((resolve) => {
-    const transaction = db.transaction(SNAPSHOT_STORE, "readwrite");
-    transaction.objectStore(SNAPSHOT_STORE).put(state, SNAPSHOT_KEY);
-    transaction.oncomplete = () => {
-      db.close();
-      resolve();
-    };
-    transaction.onerror = () => {
-      db.close();
-      resolve();
-    };
-  });
-}
-
-function saveSnapshot() {
-  const emulator = emulatorRef as Partial<StatefulEmulator> | null;
-  if (!emulator || !announcedReady || snapshotInFlight || typeof emulator.save_state !== "function") return;
-  snapshotInFlight = true;
-  lastSnapshotStartedAt = Date.now();
-  emulator.save_state((error, state) => {
-    snapshotInFlight = false;
-    if (!error && state) void writeSnapshot(state);
-  });
-}
-
-function registerSnapshotOnPageHide() {
-  if (snapshotPageHideRegistered || typeof window === "undefined") return;
-  snapshotPageHideRegistered = true;
-  window.addEventListener("pagehide", saveSnapshot);
-}
-
 function emit(next: SimStatus, nextDetail?: string) {
   status = next;
   detail = nextDetail;
@@ -290,7 +213,7 @@ function readVgaRows(container: HTMLElement): string[] {
 }
 
 /**
- * Lines that appeared since the previous snapshot. A console screen scrolls,
+ * Lines that appeared since the previous screen read. A console screen scrolls,
  * so we match the tail of the previous screen against the head of the current
  * one and treat the remainder as new output.
  */
@@ -399,9 +322,7 @@ async function provisionGuest(
       if (await probeGuest(emulator as never)) {
         write("[host] guest httpd is reachable on :80\r\n");
         emitProgress({ value: 99, label: "Almost there…" });
-        announcedServed = true;
         servedCallback?.();
-        saveSnapshot();
         // Boot is fully done: greet the visitor with the README, the way a
         // freshly provisioned box would.
         // The record separator is intercepted below. It arrives only after
@@ -423,19 +344,12 @@ async function ensureBoot(): Promise<SimVm> {
 
   host = buildHost();
   const vga = buildVgaContainer();
-  registerSnapshotOnPageHide();
   emit("loading");
 
   boot = (async () => {
-    const initialState = await readSnapshot();
-    // Warm the HTTP cache with real byte progress before v86 fetches the
-    // same URLs itself (its internal loader reports no progress). Restored
-    // snapshots skip the multi-MB kernel download entirely.
-    if (!initialState) {
-      await prefetchBootAssets();
-    } else {
-      emitProgress({ value: 60, label: "Restoring saved session…" });
-    }
+    // Warm the browser HTTP cache with real byte progress before v86 fetches
+    // the same URLs itself (its internal loader reports no progress).
+    await prefetchBootAssets();
     emitProgress({ value: 62, label: "Starting emulator…" });
     // The terminal library still has to load, while the guest starts booting
     // as soon as the emulator is ready. Ease the bar toward 85% meanwhile so
@@ -464,7 +378,6 @@ async function ensureBoot(): Promise<SimVm> {
       },
       network: { type: "virtio", relayUrl: "fetch" },
       filesystem: true,
-      initialState,
     });
     const emulator = vm.emulator;
     emulatorRef = emulator;
@@ -489,7 +402,6 @@ async function ensureBoot(): Promise<SimVm> {
     let tail = "";
     let loggedIn = false;
     let mirror: ReturnType<typeof setInterval> | null = null;
-    let snapshotTimer: ReturnType<typeof setTimeout> | null = null;
 
     // Serial arrives byte by byte. Decode the live stream as UTF-8 (streaming
     // so multi-byte characters split across events are handled) instead of
@@ -533,17 +445,6 @@ async function ensureBoot(): Promise<SimVm> {
         }
         readyCallback?.();
         void provisionGuest(emulator, writeOut);
-      } else if (announcedReady && atPrompt) {
-        // A new prompt means the preceding command completed, including writes
-        // to the ramdisk. Snapshot then, rather than relying on page teardown,
-        // but never serialize the full VM more than once every five seconds.
-        if (snapshotTimer) clearTimeout(snapshotTimer);
-        const elapsed = Date.now() - lastSnapshotStartedAt;
-        const delay = Math.max(
-          COMMAND_SNAPSHOT_DELAY_MS,
-          COMMAND_SNAPSHOT_MIN_INTERVAL_MS - elapsed,
-        );
-        snapshotTimer = setTimeout(saveSnapshot, delay);
       }
     });
 
@@ -556,16 +457,6 @@ async function ensureBoot(): Promise<SimVm> {
       clearInterval(easeTimer);
       emit("running");
       refit?.();
-      if (initialState) {
-        announcedReady = true;
-        announcedServed = true;
-        readyCallback?.();
-        readmeCompleteCallback?.();
-        servedCallback?.();
-        // The terminal itself is not part of v86's snapshot. Ask the restored
-        // shell to redraw its prompt after serial listeners are attached.
-        emulator.serial0_send("\n");
-      }
     });
 
     const [{ Terminal }, { FitAddon }] = await Promise.all([
@@ -630,8 +521,6 @@ async function ensureBoot(): Promise<SimVm> {
       while (end > 0 && ready[end - 1] === "") end--;
       if (end > 0) terminal.write(ready.slice(0, end).map((line) => line + "\r\n").join(""));
     }, 120);
-
-    setInterval(saveSnapshot, SNAPSHOT_INTERVAL_MS);
 
     return vm;
   })();

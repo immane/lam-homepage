@@ -12,5 +12,5 @@
  * properties (with fallbacks) so it is portable.
  */
 export { Finder, default } from "./finder";
-export type { FinderProps, FinderProject } from "./finder";
+export type { FinderProps, FinderProject, FinderView } from "./finder";
 export { languageColor, UNKNOWN_LANGUAGE_COLOR } from "./languages";

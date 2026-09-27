@@ -42,8 +42,17 @@ export interface FinderProps {
   title?: string;
   /** Called when a project is opened. Defaults to opening its URL in a tab. */
   onOpenProject?: (project: FinderProject) => void;
+  /**
+   * Initial main-panel arrangement. `"icons"` is the original Finder grid;
+   * `"cards"` shows the detail cards (name, description, language, stars)
+   * the homepage used to render. Defaults to `"icons"`.
+   */
+  defaultView?: FinderView;
   className?: string;
 }
+
+/** Main-panel arrangement: icon grid or detail cards. */
+export type FinderView = "icons" | "cards";
 
 type Selection = { kind: "all" } | { kind: "pinned" } | { kind: "tag"; tag: string };
 
@@ -131,11 +140,13 @@ export function Finder({
   loader,
   title = "Projects",
   onOpenProject,
+  defaultView = "icons",
   className,
 }: FinderProps) {
   const { projects, loading, error } = useProjects(source, loader);
   const [selection, setSelection] = useState<Selection>({ kind: "all" });
   const [query, setQuery] = useState("");
+  const [view, setView] = useState<FinderView>(defaultView);
 
   const tags = useMemo<TagEntry[]>(() => {
     const counts = new Map<string, number>();
@@ -276,6 +287,55 @@ export function Finder({
                 ? "No projects in this source"
                 : "No matching projects"}
             </p>
+          ) : view === "cards" ? (
+            <div className="finder-cards" role="listbox" aria-label={collectionLabel}>
+              {filtered.map((project) => {
+                const color = project.language
+                  ? languageColor(project.language)
+                  : UNKNOWN_LANGUAGE_COLOR;
+                return (
+                  <button
+                    key={project.name}
+                    type="button"
+                    role="option"
+                    className="finder-card"
+                    onClick={() => openProject(project)}
+                    title={project.description ?? project.name}
+                  >
+                    <span className="finder-card-name">
+                      {project.name}
+                      {project.isPinned && (
+                        <span className="finder-card-pinned" aria-label="Pinned" title="Pinned">
+                          ★
+                        </span>
+                      )}
+                    </span>
+                    <span className="finder-card-desc">
+                      {project.description || "No description"}
+                    </span>
+                    <span className="finder-file-meta">
+                      {project.language ? (
+                        <span className="finder-file-lang">
+                          <span
+                            className="finder-tag-dot"
+                            style={{ background: color }}
+                            aria-hidden
+                          />
+                          {project.language}
+                        </span>
+                      ) : (
+                        <span className="finder-file-lang finder-file-lang--unknown">
+                          Unknown
+                        </span>
+                      )}
+                      {project.stars > 0 && (
+                        <span className="finder-file-stars">★ {project.stars}</span>
+                      )}
+                    </span>
+                  </button>
+                );
+              })}
+            </div>
           ) : (
             <div className="finder-grid" role="listbox" aria-label={collectionLabel}>
               {filtered.map((project) => {
@@ -319,7 +379,31 @@ export function Finder({
           )}
         </div>
         <footer className="finder-statusbar">
-          <span>{loading ? "Loading…" : error ? "Unable to load projects" : `${filtered.length} items`}</span>
+          <span className="finder-statusbar-left">
+            <span>{loading ? "Loading…" : error ? "Unable to load projects" : `${filtered.length} items`}</span>
+            <span className="finder-view-toggle" role="group" aria-label="Change view">
+              <button
+                type="button"
+                className="finder-view-button"
+                aria-pressed={view === "icons"}
+                aria-label="Icon view"
+                title="Icon view"
+                onClick={() => setView("icons")}
+              >
+                <span aria-hidden>▦</span>
+              </button>
+              <button
+                type="button"
+                className="finder-view-button"
+                aria-pressed={view === "cards"}
+                aria-label="Card view"
+                title="Card view"
+                onClick={() => setView("cards")}
+              >
+                <span aria-hidden>☰</span>
+              </button>
+            </span>
+          </span>
           <span>Click a project to open</span>
         </footer>
       </section>

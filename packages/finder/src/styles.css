@@ -233,12 +233,111 @@
 .finder-statusbar {
   display: flex;
   flex: none;
+  align-items: center;
   justify-content: space-between;
   gap: 12px;
   padding: 7px 14px;
   border-top: 1px solid var(--border, #30363d);
   color: var(--muted-foreground, #8b949e);
   font-size: 10px;
+}
+
+.finder-statusbar-left {
+  display: inline-flex;
+  min-width: 0;
+  align-items: center;
+  gap: 8px;
+}
+
+/* Segmented [icons | cards] view switcher, grouped with the item count. */
+.finder-view-toggle {
+  display: inline-flex;
+  overflow: hidden;
+  border: 1px solid var(--border, #30363d);
+  border-radius: 6px;
+}
+
+.finder-view-button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 24px;
+  height: 18px;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  color: var(--muted-foreground, #8b949e);
+  font: inherit;
+  font-size: 11px;
+  line-height: 1;
+  cursor: pointer;
+}
+
+.finder-view-button + .finder-view-button {
+  border-left: 1px solid var(--border, #30363d);
+}
+
+.finder-view-button:hover {
+  background: color-mix(in oklch, var(--primary, #39d353) 10%, transparent);
+  color: var(--foreground, #e6edf3);
+}
+
+.finder-view-button[aria-pressed="true"] {
+  background: color-mix(in oklch, var(--primary, #39d353) 18%, transparent);
+  color: var(--primary, #39d353);
+}
+
+/* Card view: the detail cards (name, description, language, stars) the
+   homepage used to render, restyled to the Finder theme. */
+.finder-cards {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(240px, 1fr));
+  gap: 10px;
+}
+
+.finder-card {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding: 12px 14px;
+  border: 1px solid var(--border, #30363d);
+  border-radius: 8px;
+  background: transparent;
+  color: inherit;
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+
+.finder-card:hover {
+  border-color: color-mix(in oklch, var(--primary, #39d353) 35%, transparent);
+  background: color-mix(in oklch, var(--primary, #39d353) 6%, transparent);
+}
+
+.finder-card-name {
+  max-width: 100%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: 13px;
+  font-weight: 700;
+}
+
+.finder-card-pinned {
+  margin-left: 6px;
+  color: var(--primary, #39d353);
+}
+
+.finder-card-desc {
+  display: -webkit-box;
+  margin: 0;
+  overflow: hidden;
+  min-height: 28px;
+  font-size: 11px;
+  line-height: 1.45;
+  color: var(--muted-foreground, #8b949e);
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
 }
 
 /* Mobile: the sidebar becomes a horizontally scrollable chip bar so the
@@ -311,6 +410,7 @@
 
   .finder-file { padding: 10px; }
   .finder-file-glyph { width: 28px; height: 28px; }
+  .finder-cards { grid-template-columns: 1fr; }
   .finder-statusbar { padding: 7px 10px; }
 }
 

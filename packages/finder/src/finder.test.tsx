@@ -125,6 +125,59 @@ describe("Finder", () => {
     expect(screen.getByText("Click a project to open")).toBeInTheDocument();
   });
 
+  it("defaults to the icon grid with the icon button pressed", async () => {
+    const { container } = renderFinder();
+    await waitFor(() => expect(screen.getByText("tetris-silicon")).toBeInTheDocument());
+
+    expect(container.querySelector(".finder-grid")).not.toBeNull();
+    expect(container.querySelector(".finder-cards")).toBeNull();
+    expect(screen.getByRole("button", { name: "Icon view" })).toHaveAttribute(
+      "aria-pressed",
+      "true",
+    );
+    // Descriptions are card-only content: hidden in icon view.
+    expect(screen.queryByText("A Rust terminal Tetris")).toBeNull();
+  });
+
+  it("switches between icon and card views from the status bar toggle", async () => {
+    const { container } = renderFinder();
+    await waitFor(() => expect(screen.getByText("tetris-silicon")).toBeInTheDocument());
+
+    fireEvent.click(screen.getByRole("button", { name: "Card view" }));
+    expect(container.querySelector(".finder-cards")).not.toBeNull();
+    expect(container.querySelector(".finder-grid")).toBeNull();
+    expect(screen.getByText("A Rust terminal Tetris")).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Card view" })).toHaveAttribute(
+      "aria-pressed",
+      "true",
+    );
+
+    fireEvent.click(screen.getByRole("button", { name: "Icon view" }));
+    expect(container.querySelector(".finder-grid")).not.toBeNull();
+    expect(container.querySelector(".finder-cards")).toBeNull();
+    expect(screen.queryByText("A Rust terminal Tetris")).toBeNull();
+  });
+
+  it("opens a project with one click from card view", async () => {
+    const onOpenProject = vi.fn();
+    renderFinder({ onOpenProject });
+    await waitFor(() => expect(screen.getByText("tetris-silicon")).toBeInTheDocument());
+
+    fireEvent.click(screen.getByRole("button", { name: "Card view" }));
+    fireEvent.click(screen.getByText("A Rust terminal Tetris"));
+    expect(onOpenProject).toHaveBeenCalledWith(
+      expect.objectContaining({ name: "tetris-silicon" }),
+    );
+  });
+
+  it("honours defaultView=cards", async () => {
+    const { container } = renderFinder({ defaultView: "cards" });
+    await waitFor(() =>
+      expect(screen.getByText("A Rust terminal Tetris")).toBeInTheDocument(),
+    );
+    expect(container.querySelector(".finder-cards")).not.toBeNull();
+  });
+
   it("surfaces a load error", async () => {
     vi.stubGlobal(
       "fetch",
