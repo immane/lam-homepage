@@ -125,18 +125,17 @@ describe("Finder", () => {
     expect(screen.getByText("Click a project to open")).toBeInTheDocument();
   });
 
-  it("defaults to the icon grid with the icon button pressed", async () => {
+  it("defaults to the list view with the card button pressed", async () => {
     const { container } = renderFinder();
     await waitFor(() => expect(screen.getByText("tetris-silicon")).toBeInTheDocument());
 
-    expect(container.querySelector(".finder-grid")).not.toBeNull();
-    expect(container.querySelector(".finder-cards")).toBeNull();
-    expect(screen.getByRole("button", { name: "Icon view" })).toHaveAttribute(
+    expect(container.querySelector(".finder-cards")).not.toBeNull();
+    expect(container.querySelector(".finder-grid")).toBeNull();
+    expect(screen.getByRole("button", { name: "Card view" })).toHaveAttribute(
       "aria-pressed",
       "true",
     );
-    // Descriptions are card-only content: hidden in icon view.
-    expect(screen.queryByText("A Rust terminal Tetris")).toBeNull();
+    expect(screen.getByText("A Rust terminal Tetris")).toBeInTheDocument();
   });
 
   it("switches between icon and card views from the status bar toggle", async () => {

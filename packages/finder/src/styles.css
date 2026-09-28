@@ -298,8 +298,8 @@
 .finder-card {
   display: flex;
   flex-direction: column;
-  gap: 6px;
-  padding: 12px 14px;
+  gap: 8px;
+  padding: 16px 14px;
   border: 1px solid var(--border, #30363d);
   border-radius: 8px;
   background: transparent;
@@ -319,7 +319,7 @@
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
-  font-size: 13px;
+  font-size: 14px;
   font-weight: 700;
 }
 

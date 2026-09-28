@@ -45,7 +45,7 @@ export interface FinderProps {
   /**
    * Initial main-panel arrangement. `"icons"` is the original Finder grid;
    * `"cards"` shows the detail cards (name, description, language, stars)
-   * the homepage used to render. Defaults to `"icons"`.
+   * the homepage used to render. Defaults to `"cards"`.
    */
   defaultView?: FinderView;
   className?: string;
@@ -140,7 +140,7 @@ export function Finder({
   loader,
   title = "Projects",
   onOpenProject,
-  defaultView = "icons",
+  defaultView = "cards",
   className,
 }: FinderProps) {
   const { projects, loading, error } = useProjects(source, loader);

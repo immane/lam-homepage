@@ -66,7 +66,7 @@ flowchart TD
   some embedded WebViews, use the identical static Finder build at
   `/guest-app/index.html` instead of receiving a 404.
 - **Mobile layout**: mobile windows use solid surfaces for readability; the
-  Finder's file grid remains touch-scrollable inside the projects window.
+  Finder's project list remains touch-scrollable inside the projects window.
 
 ## Requirements
 
@@ -94,6 +94,13 @@ pnpm dev
 `pnpm dev` rebuilds the static Finder guest application. `pnpm sim:assets` is
 only needed manually for a fresh local checkout; production `pnpm build` runs
 the asset and Finder preparation steps automatically.
+
+Finder runs as a static bundle inside the guest's BusyBox HTTP server. After
+changing `packages/finder/`, rebuild the bundle with `pnpm build:guest`; this
+copies the compiled files into `apps/web/public/guest-app`, which are then
+provisioned to the guest for its internal HTTP server. Rebuild before starting
+or restarting the guest to see the changes. `pnpm sim:assets` only syncs the
+simulator runtime files and does not rebuild Finder.
 
 ### Optional GitHub Token
 
@@ -130,6 +137,8 @@ falls back to public profile HTML for pinned repositories.
 - Adjust the Matrix color tokens in `apps/web/app/globals.css`.
 - The generated guest Finder is built from `packages/finder/`; run
   `pnpm build:guest` after editing it outside the normal development workflow.
+  The guest serves this compiled static bundle, so source changes alone do not
+  update the Finder already running in the guest.
 
 `@lam/desktop`, `@lam/finder`, `@lam/sim-bridge`, and `@lam/sim-vm` are pnpm
 workspace packages. Generated simulator assets and the static Finder fallback
