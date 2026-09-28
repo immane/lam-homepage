@@ -1,4 +1,4 @@
-import type { Metadata } from "next";
+import type { Metadata, Viewport } from "next";
 import { Geist, Geist_Mono } from "next/font/google";
 import { Analytics } from "@vercel/analytics/next";
 import "@xterm/xterm/css/xterm.css";
@@ -36,6 +36,13 @@ export const metadata: Metadata = {
     description: "Independent Engineer building AI systems, distributed platforms, and embedded software. Exploring the boundaries between intelligent & silicon-level computing.",
     type: "website",
   },
+};
+
+export const viewport: Viewport = {
+  width: "device-width",
+  initialScale: 1,
+  maximumScale: 1,
+  userScalable: false,
 };
 
 export default function RootLayout({
