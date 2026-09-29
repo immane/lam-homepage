@@ -106,6 +106,18 @@ html {
   }
 }
 
+body,
+body * {
+  -webkit-user-select: none;
+  user-select: none;
+}
+
+article,
+article * {
+  -webkit-user-select: text;
+  user-select: text;
+}
+
 /* Matrix Rain Animation */
 @keyframes matrix-fall {
   0% {
