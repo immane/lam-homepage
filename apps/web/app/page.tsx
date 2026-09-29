@@ -296,6 +296,20 @@ export default function HomePage() {
   );
 
   useEffect(() => {
+    const avatarUrl = data?.user?.avatar_url;
+    if (!avatarUrl) return;
+
+    let favicon = document.querySelector<HTMLLinkElement>("link[data-avatar-favicon]");
+    if (!favicon) {
+      favicon = document.createElement("link");
+      favicon.rel = "icon";
+      favicon.dataset.avatarFavicon = "true";
+      document.head.appendChild(favicon);
+    }
+    favicon.href = avatarUrl;
+  }, [data?.user?.avatar_url]);
+
+  useEffect(() => {
     setMounted(true);
     const timer = setTimeout(() => setShowContent(true), 500);
     return () => clearTimeout(timer);
