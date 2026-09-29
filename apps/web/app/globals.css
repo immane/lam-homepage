@@ -106,8 +106,8 @@ html {
   }
 }
 
-body,
-body * {
+/* Let xterm retain its own mouse-driven selection handling. */
+body *:not(.xterm):not(.xterm *) {
   -webkit-user-select: none;
   user-select: none;
 }
