@@ -523,7 +523,7 @@ export default function HomePage() {
             {/* Typing effect tagline */}
             <div className="h-8 mb-6">
               <TypingText
-                text={`$ echo '${user?.company || "Full-Stack Developer"}'`}
+                text={`$ echo '${user?.company || "Independent Engineer"}'`}
                 className="text-lg md:text-xl text-muted-foreground"
                 speed={40}
                 delay={800}
